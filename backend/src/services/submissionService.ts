@@ -60,6 +60,25 @@ async function consumeMultipart(request: FastifyRequest): Promise<{
   }
 }
 
+function logMultipartParsed(
+  log: FastifyRequest['log'],
+  fields: Record<string, string>,
+  files: Map<string, SavedFile>
+): void {
+  const env = getEnv()
+  log.info(
+    {
+      fieldKeys: Object.keys(fields),
+      fileKeys: [...files.keys()],
+      total_certificados_raw: fields.total_certificados ?? '',
+    },
+    '[submission] multipart recebido'
+  )
+  if (env.submissionLogFieldValues) {
+    log.info({ fields }, '[submission] valores dos campos texto')
+  }
+}
+
 function requireNonEmpty(fields: Record<string, string>, key: string): string {
   const v = fields[key]
   if (v === undefined || v.trim() === '') {
@@ -84,15 +103,21 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
   let tmpDirToCleanup = tmpDir
 
   try {
-    const alunoId = requireNonEmpty(fields, 'aluno_id')
+    logMultipartParsed(request.log, fields, files)
+
     const alunoMatricula = requireNonEmpty(fields, 'aluno_matricula')
     const alunoNome = requireNonEmpty(fields, 'aluno_nome')
     const alunoEmail = requireNonEmpty(fields, 'aluno_email')
+    const alunoIdOpt = (fields.aluno_id ?? '').trim()
+    const externalUserIdForDb = alunoIdOpt || alunoMatricula
+
     const totalRaw = requireNonEmpty(fields, 'total_certificados')
     const total = parseTotalCertificados(totalRaw)
     if (total === null) {
       throw new HttpError('total_certificados deve ser inteiro >= 0', 400)
     }
+
+    request.log.info({ total_certificados: total }, '[submission] total_certificados interpretado')
 
     const reqFile = files.get('requerimento')
     if (!reqFile) {
@@ -156,17 +181,17 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
     try {
       const result = await prisma.$transaction(async (tx) => {
         const student = await tx.student.upsert({
-          where: { externalUserId: alunoId },
+          where: { matricula: alunoMatricula },
           create: {
-            externalUserId: alunoId,
+            externalUserId: externalUserIdForDb,
             matricula: alunoMatricula,
             nome: alunoNome,
             email: alunoEmail,
           },
           update: {
-            matricula: alunoMatricula,
             nome: alunoNome,
             email: alunoEmail,
+            ...(alunoIdOpt !== '' ? { externalUserId: alunoIdOpt } : {}),
           },
         })
 

@@ -10,7 +10,7 @@ async function main(): Promise<void> {
 
   const app = Fastify({ logger: true })
 
-  app.get('/health', async () => ({ ok: true }))
+  app.get('/health', async () => ({ status: 'ok' }))
 
   await app.register(multipartPlugin)
   await app.register(submissionsRoutes, { prefix: '/api' })

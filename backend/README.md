@@ -14,6 +14,7 @@ API Node.js (Fastify + TypeScript + Prisma + SQLite) para receber submissões mu
    - `DATABASE_URL` – padrão `file:./dev.db` (arquivo criado na pasta `backend` ao migrar)
    - `PORT` – padrão `3000`
    - `UPLOAD_DIR` – padrão `./uploads` (relativo ao diretório de trabalho ao iniciar o servidor)
+   - `NODE_ENV` – em `production`, valores dos campos da submissão não são logados por padrão (somente chaves); use `DEBUG_SUBMISSIONS=1` para forçar log detalhado.
 
 2. Instale dependências e aplique migrações:
 
@@ -47,15 +48,52 @@ npm start
 | GET | `/api/submissions/:id` | Detalhe com aluno e certificados |
 | PATCH | `/api/submissions/:id/status` | JSON `{"status":"pending"\|"approved"\|"rejected"}` |
 
+### Health
+
+```http
+GET /health
+```
+
+Resposta:
+
+```json
+{ "status": "ok" }
+```
+
+### POST /api/submissions – resposta
+
+Sucesso (`201`):
+
+```json
+{
+  "success": true,
+  "submissionId": "<uuid>"
+}
+```
+
+`submissionId` é o mesmo UUID usado nas pastas em `uploads/` e no banco.
+
+Erro (`4xx` / `5xx`):
+
+```json
+{
+  "success": false,
+  "message": "..."
+}
+```
+
 ## Contrato multipart (`POST /api/submissions`)
 
 Campos texto obrigatórios:
 
-- `aluno_id`
 - `aluno_matricula`
 - `aluno_nome`
 - `aluno_email`
 - `total_certificados` – inteiro `>= 0`
+
+Opcional:
+
+- `aluno_id` – se omitido ou vazio, `externalUserId` no banco usa a matrícula.
 
 Arquivo obrigatório:
 
@@ -73,24 +111,55 @@ Arquivos são gravados em `UPLOAD_DIR/requerimentos/{submissionId}/` e `UPLOAD_D
 
 Até **25 MB** por arquivo e **50** arquivos por requisição (ajuste em `src/plugins/multipart.ts`).
 
+### Logs de integração
+
+No console aparecem linhas `[submission]` com chaves dos campos, chaves dos arquivos, `total_certificados` interpretado e, fora de `production` (ou com `DEBUG_SUBMISSIONS=1`), os valores dos campos texto.
+
 ## Testes manuais
 
-### curl (Linux / macOS / Git Bash)
-
-Substitua os caminhos dos arquivos.
+### Health
 
 ```bash
-curl -X POST http://127.0.0.1:3000/api/submissions \
-  -F "aluno_id=123" \
-  -F "aluno_matricula=111" \
-  -F "aluno_nome=Nome Completo" \
-  -F "aluno_email=a@b.com" \
-  -F "total_certificados=1" \
-  -F "requerimento=@/caminho/requerimento.pdf" \
-  -F "cert_0_grupo=GrupoA" \
-  -F "cert_0_horas=10" \
-  -F "cert_0_arquivo=@/caminho/cert0.pdf"
+curl -s http://127.0.0.1:3000/health
 ```
+
+### curl – exemplo com 2 certificados (Linux / macOS / Git Bash)
+
+Ajuste os caminhos `@...` para arquivos reais no disco.
+
+```bash
+curl -s -X POST http://127.0.0.1:3000/api/submissions \
+  -F "aluno_id=999" \
+  -F "aluno_matricula=2025123456" \
+  -F "aluno_nome=Nome Sobrenome" \
+  -F "aluno_email=aluno@email.com" \
+  -F "total_certificados=2" \
+  -F "requerimento=@/caminho/requerimento.pdf" \
+  -F "cert_0_grupo=Extensao" \
+  -F "cert_0_horas=10" \
+  -F "cert_0_arquivo=@/caminho/certificado0.pdf" \
+  -F "cert_1_grupo=Pesquisa" \
+  -F "cert_1_horas=8" \
+  -F "cert_1_arquivo=@/caminho/certificado1.pdf"
+```
+
+Resposta esperada (exemplo):
+
+```json
+{"success":true,"submissionId":"550e8400-e29b-41d4-a716-446655440000"}
+```
+
+Confira no SQLite (`npm run db:studio`) ou:
+
+```bash
+curl -s http://127.0.0.1:3000/api/submissions/<submissionId>
+```
+
+### Postman
+
+1. Método **POST**, URL `http://127.0.0.1:3000/api/submissions`.
+2. Body: **form-data** (não raw JSON).
+3. Adicione cada campo como Text ou File conforme o contrato acima (nomes exatamente iguais ao PHP: `requerimento`, `cert_0_arquivo`, etc.).
 
 ### Windows PowerShell
 
@@ -103,7 +172,7 @@ curl.exe -X PATCH "http://127.0.0.1:3000/api/submissions/<ID>/status" `
   --data-binary "@status.json"
 ```
 
-Use Postman ou Insomnia para multipart e JSON sem lidar com escape do PowerShell.
+Para multipart, prefira **Postman** ou caminhos absolutos com `curl.exe -F "campo=@C:\pasta\arq.pdf"`.
 
 ### Checklist integração com o chatbot (PHP)
 

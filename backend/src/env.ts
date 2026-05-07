@@ -8,6 +8,8 @@ export type AppEnv = {
   databaseUrl: string
   uploadDir: string
   nodeEnv: string
+  /** Loga valores dos campos texto da submissão (PII); chaves sempre podem ser logadas no handler. */
+  submissionLogFieldValues: boolean
 }
 
 let cached: AppEnv | null = null
@@ -25,11 +27,16 @@ export function loadEnv(): AppEnv {
     throw new Error('PORT invalido.')
   }
   const uploadDir = resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads')
+  const nodeEnv = process.env.NODE_ENV ?? 'development'
+  const debugFlag =
+    process.env.DEBUG_SUBMISSIONS === '1' || process.env.DEBUG_SUBMISSIONS === 'true'
+  const submissionLogFieldValues = nodeEnv !== 'production' || debugFlag
   cached = {
     port,
     databaseUrl,
     uploadDir,
-    nodeEnv: process.env.NODE_ENV ?? 'development',
+    nodeEnv,
+    submissionLogFieldValues,
   }
   return cached
 }
