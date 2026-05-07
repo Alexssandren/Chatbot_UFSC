@@ -4,28 +4,34 @@ import { StatsCard } from '../components/StatsCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { api } from '../services/api';
 import type { Submission, DashboardStats } from '../types';
-import { Users, FileText, CheckCircle, XCircle, Search, Eye } from 'lucide-react';
+import { Users, FileText, CheckCircle, XCircle, Search, Eye, PieChart } from 'lucide-react';
 
 export function Dashboard() {
   const navigate = useNavigate();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     async function loadData() {
       try {
+        setLoadError(null);
         const subsData = await api.getSubmissions();
         setSubmissions(subsData);
         setStats({
           total: subsData.length,
           pending: subsData.filter((s) => s.status === 'PENDENTE').length,
+          partial: subsData.filter((s) => s.status === 'PARCIAL').length,
           approved: subsData.filter((s) => s.status === 'APROVADO').length,
           rejected: subsData.filter((s) => s.status === 'REJEITADO').length,
         });
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
+        setLoadError(
+          'Não foi possível carregar as submissões. Verifique se o backend está rodando (porta 3000) e tente atualizar a página.'
+        );
       } finally {
         setLoading(false);
       }
@@ -40,11 +46,23 @@ export function Dashboard() {
   );
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center">Carregando...</div>;
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4">
+        <div className="h-10 w-10 animate-pulse rounded-full bg-indigo-200" />
+        <p className="text-sm text-gray-600">Carregando dashboard...</p>
+      </div>
+    );
   }
+
+  const emptyDatabase = submissions.length === 0 && !loadError;
+  const emptyFilter = submissions.length > 0 && filteredSubmissions.length === 0;
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{loadError}</div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
@@ -53,9 +71,10 @@ export function Dashboard() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatsCard title="Total" value={stats.total} icon={<Users className="h-6 w-6" />} type="default" />
           <StatsCard title="Pendentes" value={stats.pending} icon={<FileText className="h-6 w-6" />} type="warning" />
+          <StatsCard title="Parciais" value={stats.partial} icon={<PieChart className="h-6 w-6" />} type="partial" />
           <StatsCard title="Aprovadas" value={stats.approved} icon={<CheckCircle className="h-6 w-6" />} type="success" />
           <StatsCard title="Rejeitadas" value={stats.rejected} icon={<XCircle className="h-6 w-6" />} type="danger" />
         </div>
@@ -119,6 +138,18 @@ export function Dashboard() {
                     </td>
                   </tr>
                 ))
+              ) : emptyDatabase ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                    Nenhuma submissão cadastrada. Use o seed de demonstração ou envie dados pelo chatbot.
+                  </td>
+                </tr>
+              ) : emptyFilter ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                    Nenhuma submissão corresponde à busca.
+                  </td>
+                </tr>
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">

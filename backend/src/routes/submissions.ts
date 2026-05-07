@@ -4,6 +4,7 @@ import {
   getSubmissionById,
   HttpError,
   listSubmissions,
+  updateCertificateApprovalStatus,
   updateSubmissionStatus,
 } from '../services/submissionService'
 
@@ -45,6 +46,27 @@ const submissionsRoutes: FastifyPluginAsync = async (app) => {
       const { id } = request.params as { id: string }
       const row = await getSubmissionById(id)
       return reply.send(row)
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.statusCode).send({ error: err.message })
+      }
+      request.log.error(err)
+      return reply.code(500).send({ error: 'Erro interno' })
+    }
+  })
+
+  app.patch('/submissions/:submissionId/certificates/:certificateId/status', async (request, reply) => {
+    try {
+      const { submissionId, certificateId } = request.params as {
+        submissionId: string
+        certificateId: string
+      }
+      const body = request.body as { status?: string }
+      if (!body || typeof body.status !== 'string') {
+        return reply.code(400).send({ error: 'Body JSON deve conter status (string)' })
+      }
+      const updated = await updateCertificateApprovalStatus(submissionId, certificateId, body.status)
+      return reply.send(updated)
     } catch (err) {
       if (err instanceof HttpError) {
         return reply.code(err.statusCode).send({ error: err.message })

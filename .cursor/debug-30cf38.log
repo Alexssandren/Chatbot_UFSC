@@ -1,0 +1,5 @@
+{"sessionId":"30cf38","timestamp":1778175803921,"runId":"hmr-pre","hypothesisId":"H2","location":"vite.config.ts:configureServer","message":"merged server config","data":{"port":5173,"strictPort":false}}
+{"sessionId":"30cf38","timestamp":1778175803989,"runId":"hmr-pre","hypothesisId":"H1","location":"vite.config.ts:listening","message":"httpServer listening address","data":{"address":{"address":"::1","family":"IPv6","port":5174}}}
+{"sessionId":"30cf38","timestamp":1778175829849,"runId":"hmr-pre","hypothesisId":"H4","location":"vite.config.ts:upgrade","message":"HTTP Upgrade received","data":{"url":"/?token=ieTH_MiBafzk","host":"localhost:5173","upgrade":"websocket"}}
+{"sessionId":"30cf38","timestamp":1778175833412,"runId":"hmr-pre","hypothesisId":"H4","location":"vite.config.ts:upgrade","message":"HTTP Upgrade received","data":{"url":"/?token=ieTH_MiBafzk","host":"localhost:5173","upgrade":"websocket"}}
+{"sessionId":"30cf38","timestamp":1778175844949,"runId":"hmr-pre","hypothesisId":"H4","location":"vite.config.ts:upgrade","message":"HTTP Upgrade received","data":{"url":"/?token=ieTH_MiBafzk","host":"localhost:5173","upgrade":"websocket"}}

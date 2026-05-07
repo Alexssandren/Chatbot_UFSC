@@ -1,7 +1,9 @@
-import { loadEnv } from './env'
+import { loadEnv, getEnv } from './env'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import fastifyStatic from '@fastify/static'
 import multipartPlugin from './plugins/multipart'
+import studentsRoutes from './routes/students'
 import submissionsRoutes from './routes/submissions'
 import { ensureUploadDirs } from './utils/uploadPaths'
 
@@ -17,7 +19,14 @@ async function main(): Promise<void> {
 
   app.get('/health', async () => ({ status: 'ok' }))
 
+  await app.register(fastifyStatic, {
+    root: getEnv().uploadDir,
+    prefix: '/uploads/',
+    decorateReply: false,
+  })
+
   await app.register(multipartPlugin)
+  await app.register(studentsRoutes, { prefix: '/api' })
   await app.register(submissionsRoutes, { prefix: '/api' })
 
   const { port } = loadEnv()

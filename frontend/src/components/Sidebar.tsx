@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileCheck } from 'lucide-react';
+import { LayoutDashboard, FileCheck, Users } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 
 export function Sidebar() {
-  const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    // Podemos adicionar mais itens no futuro
+  const navItems: { to: string; icon: typeof LayoutDashboard; label: string; end?: boolean }[] = [
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
+    { to: '/students', icon: Users, label: 'Alunos' },
   ];
 
   return (
@@ -22,6 +22,7 @@ export function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            end={item.end}
             className={({ isActive }) => twMerge(
               'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
               isActive 

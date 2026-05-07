@@ -1,4 +1,4 @@
-export type SubmissionStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO';
+export type SubmissionStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'PARCIAL';
 
 export interface Certificate {
   id: string;
@@ -6,6 +6,7 @@ export interface Certificate {
   url: string;
   hours: number;
   group: string;
+  approvalStatus: SubmissionStatus;
 }
 
 export interface Submission {
@@ -17,11 +18,26 @@ export interface Submission {
   status: SubmissionStatus;
   date: string;
   certificates: Certificate[];
+  requerimentoFilename: string;
+  requerimentoDownloadUrl: string;
 }
 
 export interface DashboardStats {
   total: number;
   pending: number;
+  partial: number;
   approved: number;
   rejected: number;
+}
+
+export interface StudentListItem {
+  id: string;
+  matricula: string;
+  nome: string;
+  email: string;
+  submissionCount: number;
+}
+
+export interface StudentDetail extends StudentListItem {
+  submissions: Submission[];
 }

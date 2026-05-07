@@ -23,6 +23,23 @@ npm install
 npx prisma migrate dev
 ```
 
+### Dados de demonstração (`db:seed`)
+
+O script `npm run db:seed` recria um conjunto fixo de alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `/uploads/...` sem enviar multipart.
+
+**Atenção:** o seed é **destrutivo**: apaga todas as linhas de `Certificate`, `Submission` e `Student` e remove as pastas `requerimentos/` e `certificados/` dentro do `UPLOAD_DIR` (não altera `tmp/`). Use apenas em ambiente de desenvolvimento ou antes de uma demo controlada.
+
+Ordem sugerida:
+
+```bash
+npx prisma migrate dev   # ou migrate deploy em CI/prod
+npm run db:seed
+```
+
+Requer o mesmo `.env` do servidor (`DATABASE_URL`, `UPLOAD_DIR`), pois o seed importa `loadEnv()` de `src/env.ts`.
+
+IDs úteis para smoke manual (após o seed): submissão pendente com certificados `22222222-2222-4222-8222-000000000001`; submissão só com requerimento (lista vazia de certificados) `22222222-2222-4222-8222-000000000004`.
+
 ## Executar
 
 Desenvolvimento (hot reload):

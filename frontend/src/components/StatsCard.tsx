@@ -6,7 +6,7 @@ interface StatsCardProps {
   value: number | string;
   icon: ReactNode;
   className?: string;
-  type?: 'default' | 'warning' | 'success' | 'danger';
+  type?: 'default' | 'warning' | 'success' | 'danger' | 'partial';
 }
 
 export function StatsCard({ title, value, icon, className, type = 'default' }: StatsCardProps) {
@@ -15,6 +15,7 @@ export function StatsCard({ title, value, icon, className, type = 'default' }: S
     warning: 'bg-yellow-50',
     success: 'bg-green-50',
     danger: 'bg-red-50',
+    partial: 'bg-violet-50',
   };
 
   const textColors = {
@@ -22,6 +23,7 @@ export function StatsCard({ title, value, icon, className, type = 'default' }: S
     warning: 'text-yellow-700',
     success: 'text-green-700',
     danger: 'text-red-700',
+    partial: 'text-violet-700',
   };
 
   const iconColors = {
@@ -29,6 +31,7 @@ export function StatsCard({ title, value, icon, className, type = 'default' }: S
     warning: 'text-yellow-600 bg-yellow-100',
     success: 'text-green-600 bg-green-100',
     danger: 'text-red-600 bg-red-100',
+    partial: 'text-violet-600 bg-violet-100',
   };
 
   return (

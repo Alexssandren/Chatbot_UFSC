@@ -38,6 +38,8 @@ model Certificate {
   horas            Float
   fileRelativePath String
   originalFilename String
+  /// pending | approved | rejected (por arquivo); submissao pode ficar partial quando misturado.
+  approvalStatus   String     @default("pending")
   createdAt        DateTime   @default(now())
 
   @@index([submissionId])

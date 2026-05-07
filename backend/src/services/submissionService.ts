@@ -249,16 +249,84 @@ export async function getSubmissionById(id: string) {
   return submission
 }
 
-const ALLOWED_STATUS = ['pending', 'approved', 'rejected'] as const
+async function syncSubmissionStatusFromCertificates(submissionId: string): Promise<void> {
+  const submission = await prisma.submission.findUnique({
+    where: { id: submissionId },
+    include: { certificates: true },
+  })
+  if (!submission || submission.certificates.length === 0) {
+    return
+  }
+
+  const statuses = submission.certificates.map((c) => c.approvalStatus)
+  if (statuses.some((s) => s === 'pending')) {
+    await prisma.submission.update({ where: { id: submissionId }, data: { status: 'pending' } })
+    return
+  }
+  if (statuses.every((s) => s === 'approved')) {
+    await prisma.submission.update({ where: { id: submissionId }, data: { status: 'approved' } })
+    return
+  }
+  if (statuses.every((s) => s === 'rejected')) {
+    await prisma.submission.update({ where: { id: submissionId }, data: { status: 'rejected' } })
+    return
+  }
+  await prisma.submission.update({ where: { id: submissionId }, data: { status: 'partial' } })
+}
+
+const ALLOWED_CERT_APPROVAL = ['pending', 'approved', 'rejected'] as const
+
+export async function updateCertificateApprovalStatus(
+  submissionId: string,
+  certificateId: string,
+  status: string
+): Promise<Awaited<ReturnType<typeof getSubmissionById>>> {
+  if (!ALLOWED_CERT_APPROVAL.includes(status as (typeof ALLOWED_CERT_APPROVAL)[number])) {
+    throw new HttpError('status do certificado deve ser pending, approved ou rejected', 400)
+  }
+
+  const cert = await prisma.certificate.findFirst({
+    where: { id: certificateId, submissionId },
+  })
+  if (!cert) {
+    throw new HttpError('Certificado nao encontrado', 404)
+  }
+
+  await prisma.certificate.update({
+    where: { id: certificateId },
+    data: { approvalStatus: status },
+  })
+
+  await syncSubmissionStatusFromCertificates(submissionId)
+
+  return getSubmissionById(submissionId)
+}
+
+const ALLOWED_STATUS = ['pending', 'approved', 'rejected', 'partial'] as const
 
 export async function updateSubmissionStatus(id: string, status: string) {
   if (!ALLOWED_STATUS.includes(status as (typeof ALLOWED_STATUS)[number])) {
-    throw new HttpError('status deve ser pending, approved ou rejected', 400)
+    throw new HttpError('status deve ser pending, approved, rejected ou partial', 400)
   }
-  const existing = await prisma.submission.findUnique({ where: { id } })
+  const existing = await prisma.submission.findUnique({
+    where: { id },
+    include: { certificates: true },
+  })
   if (!existing) {
     throw new HttpError('Submissao nao encontrada', 404)
   }
+
+  if (existing.certificates.length > 0) {
+    if (status === 'approved' || status === 'rejected' || status === 'pending') {
+      const certStatus =
+        status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending'
+      await prisma.certificate.updateMany({
+        where: { submissionId: id },
+        data: { approvalStatus: certStatus },
+      })
+    }
+  }
+
   return prisma.submission.update({
     where: { id },
     data: { status },
