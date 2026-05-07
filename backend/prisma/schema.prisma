@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id             String       @id @default(uuid())
+  externalUserId String       @unique
+  matricula      String       @unique
+  nome           String
+  email          String
+  createdAt      DateTime     @default(now())
+  submissions    Submission[]
+}
+
+model Submission {
+  id                         String             @id @default(uuid())
+  studentId                  String
+  student                    Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status                     String             @default("pending")
+  requerimentoRelativePath   String
+  requerimentoOriginalName   String
+  createdAt                  DateTime           @default(now())
+  certificates               Certificate[]
+
+  @@index([studentId])
+}
+
+model Certificate {
+  id               String     @id @default(uuid())
+  submissionId     String
+  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  grupo            String
+  horas            Float
+  fileRelativePath String
+  originalFilename String
+  createdAt        DateTime   @default(now())
+
+  @@index([submissionId])
+}
