@@ -1,5 +1,19 @@
 @echo off
 setlocal EnableExtensions
+
+echo ===================================================
+echo [iniciar] Iniciando o Frontend em uma nova janela...
+echo ===================================================
+cd /d "%~dp0frontend"
+if not exist "node_modules" (
+  echo [iniciar] Instalando dependencias do frontend...
+  call npm install
+)
+start "ValidaCert - Frontend" cmd /c "npm run dev"
+
+echo ===================================================
+echo [iniciar] Configurando e iniciando o Backend...
+echo ===================================================
 cd /d "%~dp0backend"
 
 if not exist ".env" (
@@ -27,7 +41,7 @@ if errorlevel 1 (
   )
 )
 
-echo [iniciar] npm run dev...
+echo [iniciar] npm run dev (Backend)...
 call npm run dev
 set "EXITCODE=%ERRORLEVEL%"
 if not "%EXITCODE%"=="0" (

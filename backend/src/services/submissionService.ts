@@ -234,7 +234,7 @@ export async function listSubmissions(skip: number, take: number) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
-    include: { student: true },
+    include: { student: true, certificates: true },
   })
 }
 
