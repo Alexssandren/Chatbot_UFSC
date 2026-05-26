@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import type { Submission } from '../types';
 import { StatusBadge } from './StatusBadge';
+import { DocumentFileActions } from './DocumentFileActions';
+import { PdfViewerModal, type PdfPreviewKind } from './PdfViewerModal';
 import {
-  Download,
   CheckCircle,
   XCircle,
   Clock,
   User,
   BookOpen,
   FileText,
-  ExternalLink,
+  ClipboardList,
+  Award,
   Undo2,
 } from 'lucide-react';
 import { api } from '../services/api';
@@ -35,6 +37,11 @@ export function SubmissionDetailContent({
   const [statusFeedback, setStatusFeedback] = useState<{ text: string; variant: 'success' | 'warning' } | null>(
     null
   );
+  const [pdfPreview, setPdfPreview] = useState<{
+    url: string;
+    title: string;
+    kind: PdfPreviewKind;
+  } | null>(null);
 
   useEffect(() => {
     setLocalSubmission(submission);
@@ -112,6 +119,11 @@ export function SubmissionDetailContent({
   const reqUrl = localSubmission.requerimentoDownloadUrl;
   const reqDisabled = !reqUrl || reqUrl === '#';
 
+  const openPdf = (url: string, title: string, kind: PdfPreviewKind) => {
+    if (!url || url === '#') return;
+    setPdfPreview({ url, title, kind });
+  };
+
   return (
     <div className="space-y-4">
       {statusFeedback && (
@@ -126,6 +138,15 @@ export function SubmissionDetailContent({
             Enviada em {new Date(localSubmission.date).toLocaleDateString('pt-BR')}
           </span>
         </div>
+      )}
+
+      {pdfPreview && (
+        <PdfViewerModal
+          url={pdfPreview.url}
+          title={pdfPreview.title}
+          kind={pdfPreview.kind}
+          onClose={() => setPdfPreview(null)}
+        />
       )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -198,50 +219,41 @@ export function SubmissionDetailContent({
         </div>
 
         <div className="space-y-6 md:col-span-2">
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-medium text-gray-900">
-                <FileText className="h-5 w-5 text-gray-400" /> Requerimento principal
-              </h3>
+          <div className="overflow-hidden rounded-xl border border-amber-100 bg-white shadow-sm">
+            <div className="border-b border-amber-100 bg-amber-50/40 p-6">
+              <div className="flex flex-wrap items-center gap-2 gap-y-2">
+                <h3 className="flex items-center gap-2 text-lg font-medium text-gray-900">
+                  <ClipboardList className="h-5 w-5 text-amber-700" aria-hidden />
+                  Requerimento principal
+                </h3>
+                <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+                  Requerimento
+                </span>
+              </div>
             </div>
             <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm text-gray-500">Arquivo</p>
                 <p className="font-medium text-gray-900">{localSubmission.requerimentoFilename}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={reqDisabled ? undefined : reqUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-                    reqDisabled
-                      ? 'pointer-events-none border-gray-200 bg-gray-50 text-gray-400'
-                      : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'
-                  }`}
-                  aria-disabled={reqDisabled}
-                >
-                  <ExternalLink className="h-4 w-4" /> Abrir
-                </a>
-                <a
-                  href={reqDisabled ? undefined : reqUrl}
-                  download={localSubmission.requerimentoFilename}
-                  className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-                    reqDisabled
-                      ? 'pointer-events-none border-gray-200 bg-gray-50 text-gray-400'
-                      : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'
-                  }`}
-                  aria-disabled={reqDisabled}
-                >
-                  <Download className="h-4 w-4" /> Baixar
-                </a>
-              </div>
+              <DocumentFileActions
+                url={reqUrl}
+                downloadName={localSubmission.requerimentoFilename}
+                disabled={reqDisabled}
+                onView={() => openPdf(reqUrl, localSubmission.requerimentoFilename, 'requerimento')}
+              />
             </div>
           </div>
 
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900">Certificados enviados</h3>
+            <div className="border-b border-indigo-100 bg-indigo-50/30 p-6">
+              <h3 className="flex flex-wrap items-center gap-2 text-lg font-medium text-gray-900">
+                <Award className="h-5 w-5 text-indigo-600" aria-hidden />
+                Certificados enviados
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Cada item abaixo é um certificado de atividade complementar anexado pelo aluno.
+              </p>
             </div>
             {localSubmission.certificates.length === 0 ? (
               <div className="px-6 py-10 text-center text-sm text-gray-500">
@@ -263,6 +275,9 @@ export function SubmissionDetailContent({
                           <div className="min-w-0 flex-1 space-y-2">
                             <div className="flex flex-wrap items-center gap-2 gap-y-1">
                               <h4 className="text-md font-medium text-gray-900">{cert.filename}</h4>
+                              <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-900">
+                                Certificado
+                              </span>
                               <StatusBadge status={cert.approvalStatus} />
                             </div>
                             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
@@ -276,31 +291,12 @@ export function SubmissionDetailContent({
                           </div>
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-                          <div className="flex flex-wrap gap-2">
-                            <a
-                              href={disabled ? undefined : cert.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-                                disabled
-                                  ? 'pointer-events-none border-gray-200 bg-gray-50 text-gray-400'
-                                  : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'
-                              }`}
-                            >
-                              <ExternalLink className="h-4 w-4" /> Abrir
-                            </a>
-                            <a
-                              href={disabled ? undefined : cert.url}
-                              download={cert.filename}
-                              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-                                disabled
-                                  ? 'pointer-events-none border-gray-200 bg-gray-50 text-gray-400'
-                                  : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'
-                              }`}
-                            >
-                              <Download className="h-4 w-4" /> Baixar
-                            </a>
-                          </div>
+                          <DocumentFileActions
+                            url={cert.url}
+                            downloadName={cert.filename}
+                            disabled={disabled}
+                            onView={() => openPdf(cert.url, cert.filename, 'certificado')}
+                          />
                           <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-2 sm:border-t-0 sm:pt-0 lg:border-l lg:border-gray-100 lg:pl-2">
                             {pendente ? (
                               <>
