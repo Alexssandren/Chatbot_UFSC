@@ -18,6 +18,20 @@ import {
   requerimentoDir,
   sanitizeOriginalFilename,
 } from '../utils/uploadPaths'
+import { assertCategoryBelongsToGroup } from '../domain/academicGuards'
+import { ValidationStatus } from '../domain/academicRules'
+import { resolveCertificateAcademicLinks } from '../domain/resolveCertificateAcademicLinks'
+
+const certificateAcademicInclude = {
+  include: {
+    validation: {
+      include: {
+        activityGroup: true,
+        activityCategory: true,
+      },
+    },
+  },
+} as const
 
 export class HttpError extends Error {
   constructor(
@@ -135,6 +149,8 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
       originalFilename: string
       storedName: string
       relativePath: string
+      activityGroupId: string
+      activityCategoryId: string
     }
 
     const certificateInputs: CertDraft[] = []
@@ -148,6 +164,7 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
         throw new HttpError(`Arquivo obrigatorio ausente: ${fieldName}`, 400)
       }
       const storedName = newStoredFilename(f.originalFilename)
+      const academic = resolveCertificateAcademicLinks(grupo)
       certificateInputs.push({
         grupo,
         horas,
@@ -155,6 +172,8 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
         originalFilename: f.originalFilename,
         storedName,
         relativePath: `certificados/${submissionId}/${storedName}`,
+        activityGroupId: academic.activityGroupId,
+        activityCategoryId: academic.activityCategoryId,
       })
     }
 
@@ -180,6 +199,22 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
 
     try {
       const result = await prisma.$transaction(async (tx) => {
+        for (const c of certificateInputs) {
+          const category = await tx.activityCategory.findUnique({ where: { id: c.activityCategoryId } })
+          if (!category) {
+            throw new HttpError(
+              'Configuracao academica incompleta no servidor (categoria inexistente). Execute o seed ou as migrations.',
+              500
+            )
+          }
+          try {
+            assertCategoryBelongsToGroup(category, c.activityGroupId)
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Erro de consistencia grupo/categoria'
+            throw new HttpError(msg, 500)
+          }
+        }
+
         const student = await tx.student.upsert({
           where: { matricula: alunoMatricula },
           create: {
@@ -208,6 +243,15 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
                 horas: c.horas,
                 fileRelativePath: c.relativePath,
                 originalFilename: c.originalFilename,
+                validation: {
+                  create: {
+                    activityGroupId: c.activityGroupId,
+                    activityCategoryId: c.activityCategoryId,
+                    requestedHours: c.horas,
+                    approvedHours: null,
+                    status: ValidationStatus.pending,
+                  },
+                },
               })),
             },
           },
@@ -234,14 +278,14 @@ export async function listSubmissions(skip: number, take: number) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
-    include: { student: true, certificates: true },
+    include: { student: true, certificates: certificateAcademicInclude },
   })
 }
 
 export async function getSubmissionById(id: string) {
   const submission = await prisma.submission.findUnique({
     where: { id },
-    include: { student: true, certificates: true },
+    include: { student: true, certificates: certificateAcademicInclude },
   })
   if (!submission) {
     throw new HttpError('Submissao nao encontrada', 404)
@@ -330,5 +374,6 @@ export async function updateSubmissionStatus(id: string, status: string) {
   return prisma.submission.update({
     where: { id },
     data: { status },
+    include: { student: true, certificates: certificateAcademicInclude },
   })
 }

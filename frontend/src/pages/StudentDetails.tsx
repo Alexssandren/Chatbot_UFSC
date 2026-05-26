@@ -1,22 +1,53 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import type { StudentDetail, Submission } from '../types';
+import type { AcademicSummary, StudentDetail, Submission } from '../types';
 import { SubmissionDetailContent } from '../components/SubmissionDetailContent';
+import { AcademicSummaryCard } from '../components/AcademicSummaryCard';
 import { ArrowLeft, Mail, User, Hash } from 'lucide-react';
 
 export function StudentDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [student, setStudent] = useState<StudentDetail | null>(null);
+  const [academicSummary, setAcademicSummary] = useState<AcademicSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshAcademicSummary = useCallback(async () => {
+    if (!id) return;
+    try {
+      const summary = await api.getStudentAcademicSummary(id);
+      setAcademicSummary(summary);
+      setSummaryError(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao atualizar resumo acadêmico.';
+      setSummaryError(msg);
+    }
+  }, [id]);
 
   useEffect(() => {
     async function load() {
       if (!id) return;
       try {
-        const data = await api.getStudentDetail(id);
-        if (data) setStudent(data);
+        const [detailResult, summaryResult] = await Promise.allSettled([
+          api.getStudentDetail(id),
+          api.getStudentAcademicSummary(id),
+        ]);
+
+        if (detailResult.status === 'fulfilled' && detailResult.value) {
+          setStudent(detailResult.value);
+        }
+
+        if (summaryResult.status === 'fulfilled') {
+          setAcademicSummary(summaryResult.value);
+          setSummaryError(null);
+        } else {
+          const reason = summaryResult.reason;
+          const msg = reason instanceof Error ? reason.message : 'Erro ao carregar resumo acadêmico.';
+          setSummaryError(msg);
+          setAcademicSummary(null);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -104,6 +135,11 @@ export function StudentDetails() {
         </div>
       </div>
 
+      {summaryError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{summaryError}</div>
+      ) : null}
+      {academicSummary ? <AcademicSummaryCard summary={academicSummary} /> : null}
+
       {student.submissions.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-600">
           Este aluno ainda não possui submissões registradas.
@@ -117,6 +153,7 @@ export function StudentDetails() {
                 showStudentCard={false}
                 sectionTitle={`Submissão — ${new Date(sub.date).toLocaleDateString('pt-BR')}`}
                 onSubmissionUpdated={handleSubmissionUpdated}
+                onAcademicReviewSaved={refreshAcademicSummary}
               />
             </section>
           ))}

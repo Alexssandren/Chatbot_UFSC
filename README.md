@@ -31,9 +31,9 @@ Documentação adicional por pacote:
 ### Backend
 
 - **Banco:** SQLite via `DATABASE_URL` (ver [`backend/.env.example`](backend/.env.example)).
-- **Modelos:** `Student`, `Submission`, `Certificate` ([`backend/prisma/schema.prisma`](backend/prisma/schema.prisma)).
+- **Modelos:** `Student`, `Submission`, `Certificate`; domínio UFSC: `ActivityGroup`, `ActivityCategory` (`maxEligibleHours` para tetos normativos), `CertificateValidation` — ver [`backend/README.md`](backend/README.md).
 - **Uploads:** pastas `requerimentos/{submissionId}/` e `certificados/{submissionId}/` sob `UPLOAD_DIR`.
-- **API REST:** submissões (`POST/GET/PATCH`), alunos (`GET`), detalhes com certificados e caminhos relativos de arquivo.
+- **API REST:** submissões (`POST/GET/PATCH`), alunos (`GET`); **consolidação normativa** `GET /api/students/:id/academic-summary` (cálculo **on-demand**, sem cache nem snapshot persistido); **`PATCH /api/certificates/:id/academic-review`** — revisão acadêmica (`CertificateValidation`). Ver [`backend/README.md`](backend/README.md).
 - **Arquivos públicos:** `@fastify/static` em **`/uploads/`** apontando para `UPLOAD_DIR` ([`backend/src/server.ts`](backend/src/server.ts)).
 - **CORS:** habilitado (`origin: true`) para desenvolvimento e integrações.
 - **Seed:** `npm run db:seed` — dados de demonstração + PDFs mínimos (ver backend README; operação destrutiva).
@@ -46,9 +46,11 @@ Documentação adicional por pacote:
   - `/` — Dashboard de submissões
   - `/submission/:id` — Detalhe de uma submissão
   - `/students` — Lista de alunos
-  - `/students/:id` — Aluno com várias submissões
+  - `/students/:id` — Aluno com várias submissões e **resumo acadêmico** (consolidação normativa)
   - `/login` — Login demo
-- **Painel do orientador:** aprovação/rejeição de submissão (quando aplicável) e **aprovação por certificado** com feedback visual ([`frontend/src/components/SubmissionDetailContent.tsx`](frontend/src/components/SubmissionDetailContent.tsx)).
+- **Fase 5 (acadêmico no painel):** em `/students/:id`, card **Resumo acadêmico** (`GET .../academic-summary`); em cada certificado, **revisão acadêmica** separada do fluxo **operacional** (`approvalStatus` ≠ `CertificateValidation.status`). Após salvar revisão, a UI **reidrata** submissão e resumo sem refresh manual. O tipo `Submission.studentDbId` guarda o UUID Prisma do aluno; `Submission.studentId` continua sendo a **matrícula** (dívida de nomenclatura documentada em código).
+- **Painel do orientador (operacional):** aprovação/rejeição de submissão (quando aplicável) e **aprovação por arquivo** com feedback visual ([`frontend/src/components/SubmissionDetailContent.tsx`](frontend/src/components/SubmissionDetailContent.tsx)).
+- **Consolidação no servidor:** o frontend **não** recalcula elegibilidade, tetos ou grupos; apenas exibe o JSON da API e aplica validação mínima de formulário (ex.: horas obrigatórias quando status acadêmico é aprovado).
 - **PDFs:** visualização em **modal** com `iframe`, download, loading e falha por **timeout (15s)**; distinção visual **Requerimento** vs **Certificado** ([`frontend/src/components/PdfViewerModal.tsx`](frontend/src/components/PdfViewerModal.tsx), [`DocumentFileActions.tsx`](frontend/src/components/DocumentFileActions.tsx)).
 - **API no dev:** proxy Vite de `/api` e `/uploads` para o backend ([`frontend/vite.config.ts`](frontend/vite.config.ts)). Opcional: `VITE_API_URL` em [`frontend/.env.example`](frontend/.env.example).
 
@@ -79,8 +81,7 @@ Prioridades dependem do escopo da disciplina/produto; lista não ordenada:
 4. **Integração chatbot/Moodle** — seguir checklist em [`backend/README.md`](backend/README.md) (PHP/envio multipart).
 5. **Testes automatizados** — API (Fastify), componentes críticos do front, ou E2E smoke.
 6. **Deploy e ambientes** — build do front, `NODE_ENV=production`, `migrate deploy`, `VITE_API_URL` coerente com o host que serve `/uploads/`.
-7. **Produto / domínio acadêmico** — evolução além do viewer: histórico de pareceres, notificações, exportação de relatórios, etc. (fora do escopo da última entrega de PDF).
-8. **Acessibilidade** — trap de foco completo no modal, revisão de contraste e leitores de tela, se necessário para produção.
+7. **Acessibilidade** — trap de foco completo no modal, revisão de contraste e leitores de tela, se necessário para produção.
 
 Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anotação em PDF, react-pdf/pdf.js pesado, microfrontends.
 
@@ -90,6 +91,9 @@ Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anota�
 
 | Data | Notas |
 |------|--------|
+| 26/05/2026 | Fase 5: `PATCH /api/certificates/:id/academic-review` (retorno com `validation`); painel com resumo acadêmico em `StudentDetails`, formulário `AcademicReviewForm` por certificado, mapeamento de `validation` nas submissões; `studentDbId` no tipo `Submission` (UUID vs matrícula). |
+| 26/05/2026 | Fase 2 backend: consolidação acadêmica (`academicValidationService`), `GET /api/students/:id/academic-summary`, `isAcademicallyApproved`, `displayOrder` no catálogo GI–GV; seed com validações `approved` para smoke. |
+| 26/05/2026 | Fase 1 backend: `ActivityGroup`, `ActivityCategory` (`ruleNotes`), `CertificateValidation`; constantes UFSC; resolver textual temporário para `cert_N_grupo`; migration `add_academic_domain_models`; seed e docs atualizados. |
 | 26/05/2026 | Criação deste README de raiz; baseline: backend Fastify/Prisma, front com login demo, rotas protegidas, modal de PDF (iframe + timeout), distinção requerimento/certificado. |
 
 ---

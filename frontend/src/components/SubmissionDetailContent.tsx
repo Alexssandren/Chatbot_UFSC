@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Submission } from '../types';
+import { academicStatusToBadgeStatus } from '../types';
 import { StatusBadge } from './StatusBadge';
+import { AcademicReviewForm } from './AcademicReviewForm';
 import { DocumentFileActions } from './DocumentFileActions';
 import { PdfViewerModal, type PdfPreviewKind } from './PdfViewerModal';
 import {
@@ -23,6 +25,7 @@ type Props = {
   /** Titulo opcional acima do bloco (ex.: pagina do aluno com varias submissoes). */
   sectionTitle?: string;
   onSubmissionUpdated?: (submission: Submission) => void;
+  onAcademicReviewSaved?: () => void | Promise<void>;
 };
 
 export function SubmissionDetailContent({
@@ -30,13 +33,15 @@ export function SubmissionDetailContent({
   showStudentCard = true,
   sectionTitle,
   onSubmissionUpdated,
+  onAcademicReviewSaved,
 }: Props) {
   const [localSubmission, setLocalSubmission] = useState(submission);
   const [actionLoading, setActionLoading] = useState(false);
   const [busyCertId, setBusyCertId] = useState<string | null>(null);
-  const [statusFeedback, setStatusFeedback] = useState<{ text: string; variant: 'success' | 'warning' } | null>(
-    null
-  );
+  const [statusFeedback, setStatusFeedback] = useState<{
+    text: string;
+    variant: 'success' | 'warning' | 'error';
+  } | null>(null);
   const [pdfPreview, setPdfPreview] = useState<{
     url: string;
     title: string;
@@ -114,7 +119,9 @@ export function SubmissionDetailContent({
   const feedbackClass =
     statusFeedback?.variant === 'success'
       ? 'border-green-200 bg-green-50 text-green-900'
-      : 'border-amber-200 bg-amber-50 text-amber-900';
+      : statusFeedback?.variant === 'error'
+        ? 'border-red-200 bg-red-50 text-red-900'
+        : 'border-amber-200 bg-amber-50 text-amber-900';
 
   const reqUrl = localSubmission.requerimentoDownloadUrl;
   const reqDisabled = !reqUrl || reqUrl === '#';
@@ -267,68 +274,98 @@ export function SubmissionDetailContent({
                   const pendente = cert.approvalStatus === 'PENDENTE';
                   return (
                     <li key={cert.id} className="p-6 transition-colors hover:bg-gray-50">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="shrink-0 rounded-lg bg-indigo-50 p-3">
-                            <FileText className="h-6 w-6 text-indigo-600" />
-                          </div>
-                          <div className="min-w-0 flex-1 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2 gap-y-1">
-                              <h4 className="text-md font-medium text-gray-900">{cert.filename}</h4>
-                              <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-900">
-                                Certificado
-                              </span>
-                              <StatusBadge status={cert.approvalStatus} />
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex items-start gap-4">
+                            <div className="shrink-0 rounded-lg bg-indigo-50 p-3">
+                              <FileText className="h-6 w-6 text-indigo-600" />
                             </div>
-                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-4 w-4" /> {cert.hours} horas
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <BookOpen className="h-4 w-4" /> {cert.group}
-                              </span>
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2 gap-y-1">
+                                <h4 className="text-md font-medium text-gray-900">{cert.filename}</h4>
+                                <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-900">
+                                  Certificado
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 gap-y-1 text-xs">
+                                <span className="font-medium uppercase tracking-wide text-gray-500">Operacional</span>
+                                <StatusBadge status={cert.approvalStatus} />
+                                <span className="ml-1 font-medium uppercase tracking-wide text-gray-500">
+                                  Acadêmico
+                                </span>
+                                <StatusBadge
+                                  status={academicStatusToBadgeStatus(cert.academicValidation?.status ?? 'pending')}
+                                />
+                              </div>
+                              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-4 w-4" /> {cert.hours} horas (envio)
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <BookOpen className="h-4 w-4" /> {cert.group}
+                                </span>
+                              </div>
+                              {cert.academicValidation ? (
+                                <p className="text-xs text-gray-500">
+                                  {cert.academicValidation.groupCode} — {cert.academicValidation.categoryName} ·{' '}
+                                  {cert.academicValidation.requestedHours}h solicitadas
+                                </p>
+                              ) : null}
                             </div>
                           </div>
-                        </div>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-                          <DocumentFileActions
-                            url={cert.url}
-                            downloadName={cert.filename}
-                            disabled={disabled}
-                            onView={() => openPdf(cert.url, cert.filename, 'certificado')}
-                          />
-                          <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-2 sm:border-t-0 sm:pt-0 lg:border-l lg:border-gray-100 lg:pl-2">
-                            {pendente ? (
-                              <>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
+                            <DocumentFileActions
+                              url={cert.url}
+                              downloadName={cert.filename}
+                              disabled={disabled}
+                              onView={() => openPdf(cert.url, cert.filename, 'certificado')}
+                            />
+                            <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-2 sm:border-t-0 sm:pt-0 lg:border-l lg:border-gray-100 lg:pl-2">
+                              {pendente ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={certBusy}
+                                    onClick={() => handleCertificateApproval(cert.id, 'APROVADO')}
+                                    className="inline-flex items-center gap-1 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    <CheckCircle className="h-4 w-4" /> Aprovar arquivo
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={certBusy}
+                                    onClick={() => handleCertificateApproval(cert.id, 'REJEITADO')}
+                                    className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    <XCircle className="h-4 w-4" /> Rejeitar arquivo
+                                  </button>
+                                </>
+                              ) : (
                                 <button
                                   type="button"
                                   disabled={certBusy}
-                                  onClick={() => handleCertificateApproval(cert.id, 'APROVADO')}
-                                  className="inline-flex items-center gap-1 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                                  onClick={() => handleCertificateApproval(cert.id, 'PENDENTE')}
+                                  className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                                 >
-                                  <CheckCircle className="h-4 w-4" /> Aprovar arquivo
+                                  <Undo2 className="h-4 w-4" /> Reabrir análise
                                 </button>
-                                <button
-                                  type="button"
-                                  disabled={certBusy}
-                                  onClick={() => handleCertificateApproval(cert.id, 'REJEITADO')}
-                                  className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                                >
-                                  <XCircle className="h-4 w-4" /> Rejeitar arquivo
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={certBusy}
-                                onClick={() => handleCertificateApproval(cert.id, 'PENDENTE')}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                              >
-                                <Undo2 className="h-4 w-4" /> Reabrir análise
-                              </button>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
+                        <AcademicReviewForm
+                          certificateId={cert.id}
+                          initialValidation={cert.academicValidation}
+                          onSaved={async () => {
+                            const updated = await api.getSubmissionById(localSubmission.id);
+                            if (updated) {
+                              setLocalSubmission(updated);
+                              onSubmissionUpdated?.(updated);
+                            }
+                            await onAcademicReviewSaved?.();
+                          }}
+                          onFeedback={(msg) => setStatusFeedback(msg)}
+                        />
                       </div>
                     </li>
                   );

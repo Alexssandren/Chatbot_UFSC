@@ -3,6 +3,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
 import multipartPlugin from './plugins/multipart'
+import certificatesRoutes from './routes/certificates'
 import studentsRoutes from './routes/students'
 import submissionsRoutes from './routes/submissions'
 import { ensureUploadDirs } from './utils/uploadPaths'
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   await app.register(multipartPlugin)
   await app.register(studentsRoutes, { prefix: '/api' })
   await app.register(submissionsRoutes, { prefix: '/api' })
+  await app.register(certificatesRoutes, { prefix: '/api' })
 
   const { port } = loadEnv()
   await app.listen({ port, host: '0.0.0.0' })

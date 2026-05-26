@@ -1,5 +1,29 @@
 export type SubmissionStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'PARCIAL';
 
+/** Status de validacao academica (backend: CertificateValidation.status). */
+export type AcademicValidationStatus = 'pending' | 'approved' | 'rejected';
+
+/** Mapeia status academico para o mesmo componente visual do operacional (sem misturar dados). */
+export function academicStatusToBadgeStatus(status: AcademicValidationStatus): SubmissionStatus {
+  switch (status) {
+    case 'approved':
+      return 'APROVADO';
+    case 'rejected':
+      return 'REJEITADO';
+    default:
+      return 'PENDENTE';
+  }
+}
+
+export type CertificateAcademicValidation = {
+  status: AcademicValidationStatus;
+  requestedHours: number;
+  approvedHours: number | null;
+  reviewNotes: string | null;
+  categoryName: string;
+  groupCode: string;
+};
+
 export interface Certificate {
   id: string;
   filename: string;
@@ -7,12 +31,19 @@ export interface Certificate {
   hours: number;
   group: string;
   approvalStatus: SubmissionStatus;
+  academicValidation?: CertificateAcademicValidation;
 }
 
 export interface Submission {
   id: string;
   studentName: string;
+  /** Matricula (identificador humano exibido na UI). */
   studentId: string;
+  /**
+   * UUID do aluno no banco (Prisma). Nao confundir com studentId (matricula).
+   * Usado para GET /api/students/:id/academic-summary.
+   */
+  studentDbId: string;
   totalCertificates: number;
   totalHours: number;
   status: SubmissionStatus;
@@ -21,6 +52,53 @@ export interface Submission {
   requerimentoFilename: string;
   requerimentoDownloadUrl: string;
 }
+
+export type AcademicSummary = {
+  studentId: string;
+  eligible: boolean;
+  totalApprovedHours: number;
+  totalEligibleHours: number;
+  remainingEligibleHours: number;
+  validGroupsCount: number;
+  requirements: {
+    minimumTotalHours: number;
+    minimumDistinctGroups: number;
+    minimumHoursPerGroup: number;
+    meetsTotalHoursRequirement: boolean;
+    meetsDistinctGroupsRequirement: boolean;
+  };
+  groups: {
+    groupId: string;
+    code: string;
+    name: string;
+    approvedHours: number;
+    eligibleHours: number;
+    minimumRequiredHours: number;
+    meetsMinimumHours: boolean;
+  }[];
+  categories: {
+    categoryId: string;
+    groupId: string;
+    name: string;
+    approvedHours: number;
+    eligibleHours: number;
+    maxEligibleHours: number | null;
+    cappedHours: number;
+  }[];
+};
+
+export type AcademicReviewResult = {
+  certificateId: string;
+  validation: {
+    status: string;
+    approvedHours: number | null;
+    reviewNotes: string | null;
+    reviewedAt: string | null;
+    requestedHours: number;
+    activityGroup: { code: string; name: string };
+    activityCategory: { name: string };
+  };
+};
 
 export interface DashboardStats {
   total: number;

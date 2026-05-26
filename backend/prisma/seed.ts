@@ -1,6 +1,12 @@
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { PrismaClient } from '@prisma/client'
+import {
+  CATEGORY_IDS,
+  SEED_ACTIVITY_CATEGORIES,
+  SEED_ACTIVITY_GROUPS,
+} from '../src/domain/academicCatalog'
+import { ValidationStatus } from '../src/domain/academicRules'
 import { loadEnv } from '../src/env'
 
 const prisma = new PrismaClient()
@@ -46,6 +52,10 @@ type CertSeed = {
   originalFilename: string
   grupo: string
   horas: number
+  activityGroupId: string
+  activityCategoryId: string
+  validationStatus?: 'pending' | 'approved' | 'rejected'
+  approvedHours?: number | null
 }
 
 type SubmissionSeed = {
@@ -70,12 +80,16 @@ const SUBMISSIONS: SubmissionSeed[] = [
         originalFilename: 'cert_extensao_horas.pdf',
         grupo: 'Extensao',
         horas: 40,
+        activityGroupId: SEED_ACTIVITY_GROUPS[4].id,
+        activityCategoryId: CATEGORY_IDS.GV_DEMAIS,
       },
       {
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1102.pdf',
         originalFilename: 'cert_pesquisa.pdf',
         grupo: 'Pesquisa',
         horas: 20,
+        activityGroupId: SEED_ACTIVITY_GROUPS[0].id,
+        activityCategoryId: CATEGORY_IDS.GI_PESQUISA,
       },
     ],
   },
@@ -91,18 +105,30 @@ const SUBMISSIONS: SubmissionSeed[] = [
         originalFilename: 'evento_ciencia.pdf',
         grupo: 'Eventos',
         horas: 8,
+        activityGroupId: SEED_ACTIVITY_GROUPS[1].id,
+        activityCategoryId: CATEGORY_IDS.GII_CONGRESSOS,
+        validationStatus: 'approved',
+        approvedHours: 60,
       },
       {
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1202.pdf',
         originalFilename: 'monitoria.pdf',
         grupo: 'Ensino',
         horas: 60,
+        activityGroupId: SEED_ACTIVITY_GROUPS[0].id,
+        activityCategoryId: CATEGORY_IDS.GI_ENSINO,
+        validationStatus: 'approved',
+        approvedHours: 60,
       },
       {
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1203.pdf',
         originalFilename: 'projeto_interdisciplinar.pdf',
         grupo: 'Extensao',
         horas: 30,
+        activityGroupId: SEED_ACTIVITY_GROUPS[4].id,
+        activityCategoryId: CATEGORY_IDS.GV_DEMAIS,
+        validationStatus: 'approved',
+        approvedHours: 30,
       },
     ],
   },
@@ -118,6 +144,8 @@ const SUBMISSIONS: SubmissionSeed[] = [
         originalFilename: 'unico_certificado.pdf',
         grupo: 'Outros',
         horas: 5,
+        activityGroupId: SEED_ACTIVITY_GROUPS[4].id,
+        activityCategoryId: CATEGORY_IDS.GV_DEMAIS,
       },
     ],
   },
@@ -141,12 +169,20 @@ const SUBMISSIONS: SubmissionSeed[] = [
         originalFilename: 'hackathon.pdf',
         grupo: 'Eventos',
         horas: 12,
+        activityGroupId: SEED_ACTIVITY_GROUPS[1].id,
+        activityCategoryId: CATEGORY_IDS.GII_SEMINARIOS,
+        validationStatus: 'approved',
+        approvedHours: 25,
       },
       {
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1502.pdf',
         originalFilename: 'curso_livre.pdf',
         grupo: 'Ensino',
         horas: 45,
+        activityGroupId: SEED_ACTIVITY_GROUPS[0].id,
+        activityCategoryId: CATEGORY_IDS.GI_ENSINO,
+        validationStatus: 'approved',
+        approvedHours: 45,
       },
     ],
   },
@@ -174,12 +210,33 @@ async function writeDemoFiles(uploadDir: string): Promise<void> {
 
 async function main(): Promise<void> {
   const { uploadDir } = loadEnv()
+
+  await prisma.certificateValidation.deleteMany()
   await prisma.certificate.deleteMany()
   await prisma.submission.deleteMany()
   await prisma.student.deleteMany()
+  await prisma.activityCategory.deleteMany()
+  await prisma.activityGroup.deleteMany()
 
   await resetUploadDirs(uploadDir)
   await writeDemoFiles(uploadDir)
+
+  await prisma.activityGroup.createMany({
+    data: SEED_ACTIVITY_GROUPS.map(({ id, code, name, minHours }) => ({ id, code, name, minHours })),
+  })
+  await prisma.activityCategory.createMany({
+    data: SEED_ACTIVITY_CATEGORIES.map(
+      ({ id, groupId, name, maxHours, maxEligibleHours, description, ruleNotes }) => ({
+        id,
+        groupId,
+        name,
+        maxHours,
+        maxEligibleHours,
+        description,
+        ruleNotes,
+      })
+    ),
+  })
 
   for (const s of STUDENTS) {
     await prisma.student.create({ data: { ...s } })
@@ -187,6 +244,9 @@ async function main(): Promise<void> {
 
   for (const sub of SUBMISSIONS) {
     const reqRel = `requerimentos/${sub.id}/${sub.requerimentoStoredName}`
+    const certApproval =
+      sub.status === 'approved' ? 'approved' : sub.status === 'rejected' ? 'rejected' : 'pending'
+
     await prisma.submission.create({
       data: {
         id: sub.id,
@@ -195,21 +255,38 @@ async function main(): Promise<void> {
         requerimentoRelativePath: reqRel,
         requerimentoOriginalName: sub.requerimentoOriginalName,
         certificates: {
-          create: sub.certificates.map((c) => ({
-            grupo: c.grupo,
-            horas: c.horas,
-            fileRelativePath: `certificados/${sub.id}/${c.storedName}`,
-            originalFilename: c.originalFilename,
-            approvalStatus:
-              sub.status === 'approved' ? 'approved' : sub.status === 'rejected' ? 'rejected' : 'pending',
-          })),
+          create: sub.certificates.map((c) => {
+            const academicStatus = c.validationStatus ?? ValidationStatus.pending
+            let approvedHoursVal: number | null = null
+            if (academicStatus === ValidationStatus.approved) {
+              approvedHoursVal = c.approvedHours != null ? c.approvedHours : 0
+            } else if (academicStatus === ValidationStatus.rejected) {
+              approvedHoursVal = 0
+            }
+            return {
+              grupo: c.grupo,
+              horas: c.horas,
+              fileRelativePath: `certificados/${sub.id}/${c.storedName}`,
+              originalFilename: c.originalFilename,
+              approvalStatus: certApproval,
+              validation: {
+                create: {
+                  activityGroupId: c.activityGroupId,
+                  activityCategoryId: c.activityCategoryId,
+                  requestedHours: c.horas,
+                  approvedHours: approvedHoursVal,
+                  status: academicStatus,
+                },
+              },
+            }
+          }),
         },
       },
     })
   }
 
   console.log(
-    `Seed concluido: ${STUDENTS.length} alunos, ${SUBMISSIONS.length} submissoes, arquivos em ${uploadDir}.`
+    `Seed concluido: grupos/categorias academicas, ${STUDENTS.length} alunos, ${SUBMISSIONS.length} submissoes, arquivos em ${uploadDir}.`
   )
 }
 

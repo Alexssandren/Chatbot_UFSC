@@ -4,6 +4,11 @@ import type {
   SubmissionStatus,
   StudentListItem,
   StudentDetail,
+  Certificate,
+  AcademicSummary,
+  AcademicReviewResult,
+  AcademicValidationStatus,
+  CertificateAcademicValidation,
 } from '../types';
 
 function apiBase(): string {
@@ -34,9 +39,19 @@ export function uploadPublicUrl(relativePath: string): string {
 }
 
 interface ApiStudent {
+  id: string;
   matricula: string;
   nome: string;
   email: string;
+}
+
+interface ApiValidation {
+  status: string;
+  approvedHours: number | null;
+  reviewNotes: string | null;
+  requestedHours: number;
+  activityGroup: { code: string; name: string };
+  activityCategory: { name: string };
 }
 
 interface ApiCertificate {
@@ -46,6 +61,7 @@ interface ApiCertificate {
   fileRelativePath: string;
   originalFilename: string;
   approvalStatus?: string;
+  validation?: ApiValidation | null;
 }
 
 interface ApiSubmissionRow {
@@ -102,6 +118,39 @@ function mapBackendStatus(s: string): SubmissionStatus {
   }
 }
 
+function parseAcademicValidationStatus(raw: string): AcademicValidationStatus {
+  if (raw === 'approved' || raw === 'rejected' || raw === 'pending') {
+    return raw;
+  }
+  return 'pending';
+}
+
+function mapAcademicValidation(v: ApiValidation | null | undefined): CertificateAcademicValidation | undefined {
+  if (!v) {
+    return undefined;
+  }
+  return {
+    status: parseAcademicValidationStatus(v.status),
+    requestedHours: Number(v.requestedHours),
+    approvedHours: v.approvedHours == null ? null : Number(v.approvedHours),
+    reviewNotes: v.reviewNotes ?? null,
+    categoryName: v.activityCategory?.name ?? '',
+    groupCode: v.activityGroup?.code ?? '',
+  };
+}
+
+function mapCertificate(c: ApiCertificate): Certificate {
+  return {
+    id: c.id,
+    filename: c.originalFilename,
+    url: uploadPublicUrl(c.fileRelativePath),
+    hours: Number(c.horas),
+    group: c.grupo,
+    approvalStatus: mapBackendStatus(c.approvalStatus ?? 'pending'),
+    academicValidation: mapAcademicValidation(c.validation ?? undefined),
+  };
+}
+
 function mapRow(row: ApiSubmissionRow): Submission {
   const certs = row.certificates ?? [];
   const totalHours = certs.reduce((acc, c) => acc + Number(c.horas), 0);
@@ -110,20 +159,14 @@ function mapRow(row: ApiSubmissionRow): Submission {
     id: row.id,
     studentName: row.student.nome,
     studentId: row.student.matricula,
+    studentDbId: row.student.id,
     totalCertificates: certs.length,
     totalHours,
     status: mapBackendStatus(row.status),
     date: typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : '',
     requerimentoFilename: row.requerimentoOriginalName ?? 'requerimento.pdf',
     requerimentoDownloadUrl: reqPath ? uploadPublicUrl(reqPath) : '#',
-    certificates: certs.map((c) => ({
-      id: c.id,
-      filename: c.originalFilename,
-      url: uploadPublicUrl(c.fileRelativePath),
-      hours: Number(c.horas),
-      group: c.grupo,
-      approvalStatus: mapBackendStatus(c.approvalStatus ?? 'pending'),
-    })),
+    certificates: certs.map(mapCertificate),
   };
 }
 
@@ -197,6 +240,7 @@ export const api = {
     }
     const raw = await parseJson<ApiStudentDetail>(res);
     const studentMini: ApiStudent = {
+      id: raw.id,
       matricula: raw.matricula,
       nome: raw.nome,
       email: raw.email,
@@ -215,6 +259,55 @@ export const api = {
       submissionCount: submissions.length,
       submissions,
     };
+  },
+
+  getStudentAcademicSummary: async (studentDbId: string): Promise<AcademicSummary> => {
+    const url = apiUrl(`/api/students/${encodeURIComponent(studentDbId)}/academic-summary`);
+    const res = await fetch(url);
+    const text = await res.text();
+    let payload: AcademicSummary | { error?: string };
+    try {
+      payload = text ? (JSON.parse(text) as AcademicSummary | { error?: string }) : {};
+    } catch {
+      throw new Error(`Erro ao carregar resumo academico: ${res.status}`);
+    }
+    if (!res.ok) {
+      const msg =
+        'error' in payload && typeof payload.error === 'string'
+          ? payload.error
+          : `Erro ao carregar resumo academico: ${res.status}`;
+      throw new Error(msg);
+    }
+    return payload as AcademicSummary;
+  },
+
+  reviewCertificateAcademically: async (
+    certificateId: string,
+    payload: {
+      status: AcademicValidationStatus;
+      approvedHours?: number | null;
+      reviewNotes?: string | null;
+    }
+  ): Promise<AcademicReviewResult> => {
+    const url = apiUrl(`/api/certificates/${encodeURIComponent(certificateId)}/academic-review`);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    let body: AcademicReviewResult | { error?: string };
+    try {
+      body = text ? (JSON.parse(text) as AcademicReviewResult | { error?: string }) : ({} as { error?: string });
+    } catch {
+      throw new Error(`Erro na revisao academica: ${res.status}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        'error' in body && typeof body.error === 'string' ? body.error : `Erro na revisao academica: ${res.status}`
+      );
+    }
+    return body as AcademicReviewResult;
   },
 
   patchCertificateApproval: async (

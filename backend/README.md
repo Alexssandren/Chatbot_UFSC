@@ -23,11 +23,48 @@ npm install
 npx prisma migrate dev
 ```
 
+### Domínio acadêmico (UFSC) — Fase 1
+
+O Prisma modela **grupos oficiais** (`ActivityGroup`, códigos GI–GV), **categorias** por grupo (`ActivityCategory`, com `maxHours`, **`maxEligibleHours`** (teto elegível Fase 3), `ruleNotes` sem motor de cálculo) e **`CertificateValidation`** (1:1 com `Certificate`): `requestedHours`, `approvedHours`, `status` de validação acadêmica, `reviewNotes`, `reviewedAt`.
+
+- **`Certificate.grupo` / `Certificate.horas`**: mantidos para compatibilidade com multipart e frontend legado.
+- **`Certificate.approvalStatus`**: continua sendo aprovação **operacional** do arquivo (orientador).
+- **`CertificateValidation.status`**: validação **acadêmica** formal (`pending` | `approved` | `rejected`). No SQLite o campo é `TEXT`; os valores canônicos estão em [`src/domain/academicRules.ts`](src/domain/academicRules.ts) como `ValidationStatus` (o conector SQLite não usa `enum` nativo do Prisma neste projeto).
+- **Semântica de `approvedHours`:** `pending` → `null`; `rejected` → `0`; `approved` → valor **> 0**. A persistência é feita via **`PATCH /api/certificates/:id/academic-review`** (Fase 5).
+- **Constantes globais:** `MIN_TOTAL_HOURS`, `MIN_DISTINCT_GROUPS`, `MIN_HOURS_PER_GROUP` em [`src/domain/academicRules.ts`](src/domain/academicRules.ts).
+- **Multipart legado:** o mapeamento texto `cert_N_grupo` → par grupo/categoria está em [`src/domain/resolveCertificateAcademicLinks.ts`](src/domain/resolveCertificateAcademicLinks.ts), **temporário** até o cliente enviar IDs formais.
+- **Invariante:** `assertCategoryBelongsToGroup` em [`src/domain/academicGuards.ts`](src/domain/academicGuards.ts) garante que a categoria pertence ao grupo antes de persistir.
+
+**Migrations:** a pasta `20260208103000_certificate_approval_status` foi renomeada para `20260508103000_certificate_approval_status` para rodar **depois** de `init`. Se o seu `dev.db` já tinha aplicado a migration antiga e `migrate deploy` acusar coluna duplicada, use `npx prisma migrate resolve --applied 20260508103000_certificate_approval_status` e rode `migrate deploy` de novo.
+
+### Consolidação acadêmica (UFSC) — Fases 2 e 3
+
+- **Serviço:** [`src/services/academicValidationService.ts`](src/services/academicValidationService.ts) — `getStudentAcademicConsolidation(studentId)`.
+- **Filtro contábil:** apenas validações com `status === approved` ([`isAcademicallyApproved`](src/domain/academicRules.ts)); horas de certificado com `(approvedHours ?? 0)`. **`requestedHours` não entra no cálculo.**
+
+**Fase 2 (base):** todos os grupos GI–GV na resposta; ordem institucional em [`academicCatalog.ts`](src/domain/academicCatalog.ts) (`displayOrder`).
+
+**Fase 3 (consolidação normativa):**
+
+- **`ActivityCategory.maxEligibleHours`** (Prisma, migration `add_category_eligible_hours_limit`): teto de horas **elegíveis** para integralização por categoria; `null` = sem teto. Mantém-se `maxHours` no modelo (outro significado / legado).
+- **Fluxo:** somar `approvedHours` **por categoria** (vários certificados na mesma categoria somam antes do teto); depois aplicar [`applyCategoryEligibleCap`](src/domain/academicRules.ts) uma vez por categoria — **nunca** cap por certificado isolado.
+- **`categories[]`:** por categoria com horas aprovadas > 0: `approvedHours`, `eligibleHours`, `maxEligibleHours`, `cappedHours` (= `approvedHours - eligibleHours`).
+- **`groups[]`:** `approvedHours` e **`eligibleHours`** (soma das elegíveis das categorias do grupo); **`meetsMinimumHours`** e **`validGroupsCount`** usam **`eligibleHours`**.
+- **Totais:** `totalApprovedHours` (auditoria, antes do teto); **`totalEligibleHours`** (base normativa); **`remainingEligibleHours`** = `max(0, MIN_TOTAL_HOURS - totalEligibleHours)`; **`requirements.meetsTotalHoursRequirement`** e **`eligible`** usam **`totalEligibleHours`**.
+
+**Breaking change (Fase 3):** o campo `remainingHours` foi **removido**; use **`remainingEligibleHours`**.
+
+**Fonte da verdade (tetos):** após `migrate` + `db:seed`, o **banco** (`ActivityCategory.maxEligibleHours` lido via Prisma na consolidação) é a fonte em runtime. O catálogo TypeScript (`academicCatalog.ts`) alinha o seed e o multipart legado; alterar só o TS sem atualizar o banco pode gerar inconsistência.
+
+**Cálculo em runtime:** `GET /api/students/:id/academic-summary` **recalcula a consolidação a cada requisição**. Não existe cache nem snapshot persistido de totais. Qualquer otimização futura (materialização, jobs) deve preservar **consistência normativa** com a mesma semântica de `academicRules` / `applyCategoryEligibleCap`.
+
+**Limitações:** não há `capReason` / `ruleApplied`; `ruleNotes` não é interpretado; `Certificate.approvalStatus` (operacional) não altera este cálculo.
+
 ### Dados de demonstração (`db:seed`)
 
 O script `npm run db:seed` recria um conjunto fixo de alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `/uploads/...` sem enviar multipart.
 
-**Atenção:** o seed é **destrutivo**: apaga todas as linhas de `Certificate`, `Submission` e `Student` e remove as pastas `requerimentos/` e `certificados/` dentro do `UPLOAD_DIR` (não altera `tmp/`). Use apenas em ambiente de desenvolvimento ou antes de uma demo controlada.
+**Atenção:** o seed é **destrutivo**: apaga `CertificateValidation`, `Certificate`, `Submission`, `Student`, `ActivityCategory`, `ActivityGroup` e remove as pastas `requerimentos/` e `certificados/` dentro do `UPLOAD_DIR` (não altera `tmp/`). Em seguida recria grupos/categorias oficiais (GI–GV), dados de demo e PDFs mínimos. Use apenas em ambiente de desenvolvimento ou antes de uma demo controlada.
 
 Ordem sugerida:
 
@@ -39,6 +76,8 @@ npm run db:seed
 Requer o mesmo `.env` do servidor (`DATABASE_URL`, `UPLOAD_DIR`), pois o seed importa `loadEnv()` de `src/env.ts`.
 
 IDs úteis para smoke manual (após o seed): submissão pendente com certificados `22222222-2222-4222-8222-000000000001`; submissão só com requerimento (lista vazia de certificados) `22222222-2222-4222-8222-000000000004`.
+
+**Consolidação (após seed):** Bruno (`11111111-1111-4111-8111-000000000002`): Congressos 60 h aprovadas (teto 30 h elegíveis), GI 60 h, GV 30 h — `totalApprovedHours` 150, `totalEligibleHours` 120, `validGroupsCount` 3, `eligible` false. Daniel (`11111111-1111-4111-8111-000000000004`): Seminários 25 h aprovadas (teto 15 h elegíveis), GI 45 h — GII com `meetsMinimumHours` false (15 &lt; 20). `GET /api/students/:id/academic-summary`.
 
 ## Executar
 
@@ -64,6 +103,35 @@ npm start
 | GET | `/api/submissions` | Lista (`skip`, `take` opcionais; `take` máx. 100) |
 | GET | `/api/submissions/:id` | Detalhe com aluno e certificados |
 | PATCH | `/api/submissions/:id/status` | JSON `{"status":"pending"\|"approved"\|"rejected"}` |
+| GET | `/api/students` | Lista de alunos (resumo) |
+| GET | `/api/students/:id` | Aluno com submissões e certificados |
+| GET | `/api/students/:id/academic-summary` | Consolidação acadêmica (Fase 3: approved/eligible, categorias, tetos) |
+| PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`). Resposta `200` com `certificateId` e `validation` atualizada. |
+
+### GET /api/students/:id/academic-summary
+
+Resposta `200`: tipo `AcademicConsolidation` em [`src/services/academicValidationService.ts`](src/services/academicValidationService.ts).
+
+- `studentId`, `eligible`, `totalApprovedHours`, **`totalEligibleHours`**, **`remainingEligibleHours`**, `validGroupsCount`
+- `requirements`: mínimos e flags (`meetsTotalHoursRequirement` usa **`totalEligibleHours`**)
+- `groups`: sempre todos os `ActivityGroup` do banco; cada item com `approvedHours`, **`eligibleHours`**, `meetsMinimumHours` (por **eligible**)
+- **`categories[]`:** detalhe normativo por categoria (`approvedHours`, `eligibleHours`, `maxEligibleHours`, `cappedHours`)
+
+**Breaking change:** na Fase 3, **`remainingHours` foi removido**; use **`remainingEligibleHours`**.
+
+`404`: aluno inexistente.
+
+### PATCH /api/certificates/:id/academic-review
+
+Corpo JSON:
+
+- `status` (obrigatório): `pending` | `approved` | `rejected`
+- `approvedHours` (opcional): obrigatório semanticamente quando `status === approved` (número > 0); ignorado/normalizado para `pending`/`rejected` conforme [`isValidApprovedHoursForStatus`](src/domain/academicRules.ts)
+- `reviewNotes` (opcional): string ou omitido / `null`
+
+Resposta `200`: objeto com `certificateId` e `validation` (status, horas, parecer, `reviewedAt`, `requestedHours`, `activityGroup`, `activityCategory`).
+
+`400`: combinação inválida; `404`: certificado inexistente ou sem registro de validação.
 
 ### Health
 

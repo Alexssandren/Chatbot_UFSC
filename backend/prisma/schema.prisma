@@ -31,16 +31,70 @@ model Submission {
 }
 
 model Certificate {
-  id               String     @id @default(uuid())
+  id               String                 @id @default(uuid())
   submissionId     String
-  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submission       Submission             @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   grupo            String
   horas            Float
   fileRelativePath String
   originalFilename String
   /// pending | approved | rejected (por arquivo); submissao pode ficar partial quando misturado.
-  approvalStatus   String     @default("pending")
-  createdAt        DateTime   @default(now())
+  approvalStatus   String                 @default("pending")
+  createdAt        DateTime               @default(now())
+  /// 1:1 com validacao academica (obrigatorio apos migration completa; opcional para DB legado).
+  validation       CertificateValidation?
 
   @@index([submissionId])
+}
+
+/// Grupos oficiais de atividades complementares (UFSC).
+model ActivityGroup {
+  id           String                 @id @default(uuid())
+  code         String                 @unique
+  name         String
+  minHours     Int
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  categories   ActivityCategory[]
+  validations  CertificateValidation[]
+}
+
+/// Categoria dentro de um grupo (regulamento; sem motor de calculo nesta fase).
+model ActivityCategory {
+  id          String       @id @default(uuid())
+  groupId     String
+  group       ActivityGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  name        String
+  maxHours    Int?
+  /// Teto de horas elegiveis para integralizacao por categoria (null = sem limite normativo nesta fase).
+  maxEligibleHours Int?
+  description String?
+  /// Texto humano: limites ou contagem conforme regulamento (ex.: "2 h por palestra; maximo 10 h").
+  ruleNotes   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  validations CertificateValidation[]
+
+  @@index([groupId])
+}
+
+/// Contexto academico UFSC por certificado. Semantica approvedHours: pending=null; rejected=0; approved=>0.
+model CertificateValidation {
+  id                   String            @id @default(uuid())
+  certificateId      String            @unique
+  certificate          Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  activityGroupId      String
+  activityGroup        ActivityGroup     @relation(fields: [activityGroupId], references: [id], onDelete: Restrict)
+  activityCategoryId   String
+  activityCategory     ActivityCategory  @relation(fields: [activityCategoryId], references: [id], onDelete: Restrict)
+  requestedHours       Float
+  /// pending => null; rejected => 0; approved => valor > 0 (quando houver fluxo de revisao).
+  approvedHours        Float?
+  /// Valores: pending | approved | rejected (ValidationStatus; SQLite sem enum nativo no Prisma).
+  status               String            @default("pending")
+  reviewNotes          String?
+  reviewedAt           DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 }
