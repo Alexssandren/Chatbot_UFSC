@@ -34,7 +34,20 @@ export function AcademicReviewForm({
     }
     setReviewNotes(v?.reviewNotes ?? '');
     setSubmitError(null);
-  }, [certificateId, initialValidation?.status, initialValidation?.approvedHours, initialValidation?.reviewNotes]);
+  }, [
+    certificateId,
+    initialValidation?.status,
+    initialValidation?.approvedHours,
+    initialValidation?.reviewNotes,
+    initialValidation?.requestedHours,
+  ]);
+
+  const requestedCap =
+    initialValidation != null &&
+    Number.isFinite(initialValidation.requestedHours) &&
+    initialValidation.requestedHours > 0
+      ? initialValidation.requestedHours
+      : null;
 
   const hoursDisabled = status !== 'approved';
   const hoursDisplayValue = status === 'rejected' ? '0' : hoursInput;
@@ -47,6 +60,12 @@ export function AcademicReviewForm({
       const n = Number(hoursInput.replace(',', '.'));
       if (!Number.isFinite(n) || n <= 0) {
         setSubmitError('Informe as horas homologadas (maior que zero) quando o status for aprovado.');
+        return;
+      }
+      if (requestedCap != null && n > requestedCap) {
+        setSubmitError(
+          `As horas homologadas nao podem exceder as horas solicitadas no certificado (${requestedCap} h).`
+        );
         return;
       }
     }
@@ -126,11 +145,15 @@ export function AcademicReviewForm({
         <div>
           <label htmlFor={hoursInputId} className="mb-1 block text-xs font-medium text-gray-600">
             Horas homologadas
+            {status === 'approved' && requestedCap != null ? (
+              <span className="block font-normal text-gray-500"> Maximo: {requestedCap} h (solicitadas). </span>
+            ) : null}
           </label>
           <input
             id={hoursInputId}
             type="number"
             min={status === 'approved' ? 0.01 : undefined}
+            max={status === 'approved' && requestedCap != null ? requestedCap : undefined}
             step="0.5"
             value={hoursDisplayValue}
             onChange={(ev) => {

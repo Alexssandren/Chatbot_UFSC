@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "repair-academic": "tsx scripts/repair-academic-integrity.ts",
     "db:studio": "prisma studio"
   },
   "prisma": {

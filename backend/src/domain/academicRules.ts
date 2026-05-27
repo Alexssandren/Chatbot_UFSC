@@ -18,12 +18,65 @@ export const ValidationStatus = {
 
 export type ValidationStatusValue = (typeof ValidationStatus)[keyof typeof ValidationStatus]
 
+/** Snapshot minimo para filtro contabil na consolidacao (I-40 / I-41). */
+export type AcademicConsolidationValidationInput = {
+  status: string
+  approvedHours: number | null
+  requestedHours: number
+  activityGroupId: string
+  activityCategory: { groupId: string }
+}
+
 /**
- * Indica se a validação entra no cálculo de consolidação acadêmica.
- * Usa apenas o status; horas aprovadas vêm de `approvedHours` (invariante na persistência).
+ * Indica se a validacao entra no calculo de consolidacao academica.
+ * Exige status approved, requestedHours valido, approvedHours finito dentro do solicitado
+ * e categoria pertencente ao grupo (defesa contra dados legados ou corrompidos).
  */
-export function isAcademicallyApproved(validation: { status: string }): boolean {
-  return validation.status === ValidationStatus.approved
+export function isAcademicallyApproved(validation: AcademicConsolidationValidationInput): boolean {
+  if (validation.status !== ValidationStatus.approved) {
+    return false
+  }
+  if (!isValidRequestedHours(validation.requestedHours)) {
+    return false
+  }
+  if (validation.activityCategory.groupId !== validation.activityGroupId) {
+    return false
+  }
+  const ah = validation.approvedHours
+  if (ah === null || !Number.isFinite(ah) || ah <= 0) {
+    return false
+  }
+  if (ah > validation.requestedHours) {
+    return false
+  }
+  return true
+}
+
+export function isValidRequestedHours(requestedHours: number): boolean {
+  return Number.isFinite(requestedHours) && requestedHours > 0
+}
+
+/**
+ * Horas solicitadas invalidas no certificado (legado ou erro de carga).
+ */
+export function assertRequestedHoursValid(requestedHours: number): void {
+  if (!isValidRequestedHours(requestedHours)) {
+    throw new Error('requestedHours invalido no certificado; corrija os dados antes de revisar')
+  }
+}
+
+/**
+ * Homologacao nao pode exceder o solicitado no certificado (I-14).
+ */
+export function assertApprovedHoursWithinRequested(
+  approvedHours: number,
+  requestedHours: number
+): void {
+  if (approvedHours > requestedHours) {
+    throw new Error(
+      `approvedHours (${approvedHours}) nao pode exceder horas solicitadas (${requestedHours})`
+    )
+  }
 }
 
 /**

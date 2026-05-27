@@ -1,5 +1,6 @@
 import { prisma } from '../db'
 import { compareActivityGroupsByDisplayOrder } from '../domain/academicCatalog'
+import { validateAcademicReviewAgainstStoredValidation } from '../domain/academicValidationContract'
 import {
   applyCategoryEligibleCap,
   isAcademicallyApproved,
@@ -96,6 +97,11 @@ export async function getStudentAcademicConsolidation(
   for (let i = 0; i < validations.length; i++) {
     const v = validations[i]
     if (!isAcademicallyApproved(v)) {
+      if (v.status === ValidationStatus.approved) {
+        console.warn(
+          `[academic-consolidation] ignorando validacao inconsistente certificateId=${v.certificateId}`
+        )
+      }
       continue
     }
     const cat = v.activityCategory
@@ -252,6 +258,19 @@ function normalizeReviewNotes(raw: string | null | undefined): string | null {
   return t.length === 0 ? null : t
 }
 
+function mapDomainErrorToHttp(err: unknown): HttpError {
+  if (err instanceof HttpError) {
+    return err
+  }
+  if (err instanceof Error) {
+    if (err.message.startsWith('Inconsistencia:')) {
+      return new HttpError(err.message, 500)
+    }
+    return new HttpError(err.message, 400)
+  }
+  return new HttpError('Erro de validacao', 400)
+}
+
 export async function reviewCertificateAcademically(
   certificateId: string,
   input: AcademicReviewInput
@@ -265,13 +284,35 @@ export async function reviewCertificateAcademically(
 
   const cert = await prisma.certificate.findUnique({
     where: { id: certificateId },
-    select: { id: true, validation: { select: { id: true } } },
+    select: {
+      id: true,
+      validation: {
+        select: {
+          id: true,
+          requestedHours: true,
+          activityGroupId: true,
+          activityCategory: { select: { id: true, name: true, groupId: true } },
+        },
+      },
+    },
   })
   if (!cert) {
     throw new HttpError('Certificado nao encontrado', 404)
   }
   if (!cert.validation) {
-    throw new HttpError('Certificado sem validacao academica', 404)
+    throw new HttpError('Certificado sem registro de validacao academica (migration incompleta ou dado legado)', 404)
+  }
+
+  try {
+    validateAcademicReviewAgainstStoredValidation({
+      status,
+      approvedHoursNorm,
+      requestedHours: cert.validation.requestedHours,
+      activityGroupId: cert.validation.activityGroupId,
+      activityCategory: cert.validation.activityCategory,
+    })
+  } catch (err) {
+    throw mapDomainErrorToHttp(err)
   }
 
   const now = new Date()

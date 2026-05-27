@@ -45,12 +45,26 @@ export interface Submission {
    */
   studentDbId: string;
   totalCertificates: number;
+  /**
+   * Horas homologadas na validacao academica (soma por submissao; mesma regra do resumo do aluno).
+   * Pode ser menor que totalDeclaredHours se houver certificado ainda pendente ou sem homologacao valida.
+   */
   totalHours: number;
+  /** Soma das horas declaradas no envio (Certificate.horas). */
+  totalDeclaredHours: number;
   status: SubmissionStatus;
   date: string;
   certificates: Certificate[];
   requerimentoFilename: string;
   requerimentoDownloadUrl: string;
+}
+
+/** Texto para listagens: homologadas alinhadas ao resumo academico; envio quando diferir. */
+export function formatSubmissionHoursSummary(sub: Pick<Submission, 'totalHours' | 'totalDeclaredHours'>): string {
+  if (sub.totalDeclaredHours === sub.totalHours) {
+    return `${sub.totalHours}h`;
+  }
+  return `${sub.totalHours}h hom. (${sub.totalDeclaredHours}h envio)`;
 }
 
 export type AcademicSummary = {

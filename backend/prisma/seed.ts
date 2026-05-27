@@ -104,7 +104,7 @@ const SUBMISSIONS: SubmissionSeed[] = [
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1201.pdf',
         originalFilename: 'evento_ciencia.pdf',
         grupo: 'Eventos',
-        horas: 8,
+        horas: 60,
         activityGroupId: SEED_ACTIVITY_GROUPS[1].id,
         activityCategoryId: CATEGORY_IDS.GII_CONGRESSOS,
         validationStatus: 'approved',
@@ -168,7 +168,7 @@ const SUBMISSIONS: SubmissionSeed[] = [
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1501.pdf',
         originalFilename: 'hackathon.pdf',
         grupo: 'Eventos',
-        horas: 12,
+        horas: 25,
         activityGroupId: SEED_ACTIVITY_GROUPS[1].id,
         activityCategoryId: CATEGORY_IDS.GII_SEMINARIOS,
         validationStatus: 'approved',
@@ -259,7 +259,20 @@ async function main(): Promise<void> {
             const academicStatus = c.validationStatus ?? ValidationStatus.pending
             let approvedHoursVal: number | null = null
             if (academicStatus === ValidationStatus.approved) {
-              approvedHoursVal = c.approvedHours != null ? c.approvedHours : 0
+              const explicit = c.approvedHours
+              if (explicit != null && explicit > 0) {
+                approvedHoursVal = explicit
+              } else {
+                approvedHoursVal = c.horas > 0 ? c.horas : null
+              }
+              if (approvedHoursVal == null || approvedHoursVal <= 0) {
+                throw new Error(`Seed: certificado aprovado sem horas validas (${c.originalFilename})`)
+              }
+              if (approvedHoursVal > c.horas) {
+                throw new Error(
+                  `Seed: approvedHours (${approvedHoursVal}) excede horas (${c.horas}) em ${c.originalFilename}`
+                )
+              }
             } else if (academicStatus === ValidationStatus.rejected) {
               approvedHoursVal = 0
             }

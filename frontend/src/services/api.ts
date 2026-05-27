@@ -73,6 +73,8 @@ interface ApiSubmissionRow {
   requerimentoOriginalName: string;
   student: ApiStudent;
   certificates?: ApiCertificate[];
+  totalDeclaredHours?: number;
+  totalAcademicApprovedHours?: number;
 }
 
 /** Submissao como retornada em GET /students/:id (sem objeto student aninhado). */
@@ -153,7 +155,19 @@ function mapCertificate(c: ApiCertificate): Certificate {
 
 function mapRow(row: ApiSubmissionRow): Submission {
   const certs = row.certificates ?? [];
-  const totalHours = certs.reduce((acc, c) => acc + Number(c.horas), 0);
+  const legacyDeclared = certs.reduce((acc, c) => acc + Number(c.horas), 0);
+  const totalDeclaredHours =
+    row.totalDeclaredHours !== undefined &&
+    row.totalDeclaredHours !== null &&
+    Number.isFinite(row.totalDeclaredHours)
+      ? row.totalDeclaredHours
+      : legacyDeclared;
+  const totalAcademicApprovedHours =
+    row.totalAcademicApprovedHours !== undefined &&
+    row.totalAcademicApprovedHours !== null &&
+    Number.isFinite(row.totalAcademicApprovedHours)
+      ? row.totalAcademicApprovedHours
+      : legacyDeclared;
   const reqPath = row.requerimentoRelativePath ?? '';
   return {
     id: row.id,
@@ -161,7 +175,8 @@ function mapRow(row: ApiSubmissionRow): Submission {
     studentId: row.student.matricula,
     studentDbId: row.student.id,
     totalCertificates: certs.length,
-    totalHours,
+    totalHours: totalAcademicApprovedHours,
+    totalDeclaredHours,
     status: mapBackendStatus(row.status),
     date: typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : '',
     requerimentoFilename: row.requerimentoOriginalName ?? 'requerimento.pdf',

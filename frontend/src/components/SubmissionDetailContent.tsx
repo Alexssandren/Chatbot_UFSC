@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Submission } from '../types';
-import { academicStatusToBadgeStatus } from '../types';
+import { academicStatusToBadgeStatus, formatSubmissionHoursSummary } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { AcademicReviewForm } from './AcademicReviewForm';
 import { DocumentFileActions } from './DocumentFileActions';
@@ -194,8 +194,8 @@ export function SubmissionDetailContent({
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Horas Totais</span>
-                <span className="font-medium text-gray-900">{localSubmission.totalHours}h</span>
+                <span className="text-sm text-gray-500">Horas (homologadas)</span>
+                <span className="font-medium text-gray-900">{formatSubmissionHoursSummary(localSubmission)}</span>
               </div>
             </div>
           </div>
@@ -309,6 +309,13 @@ export function SubmissionDetailContent({
                                 <p className="text-xs text-gray-500">
                                   {cert.academicValidation.groupCode} — {cert.academicValidation.categoryName} ·{' '}
                                   {cert.academicValidation.requestedHours}h solicitadas
+                                  {cert.academicValidation.status === 'approved' &&
+                                  cert.academicValidation.approvedHours != null &&
+                                  cert.academicValidation.approvedHours > 0
+                                    ? ` · ${cert.academicValidation.approvedHours}h homologadas`
+                                    : cert.academicValidation.status === 'rejected'
+                                      ? ' · 0h homologadas'
+                                      : ''}
                                 </p>
                               ) : null}
                             </div>

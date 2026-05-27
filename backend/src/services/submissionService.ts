@@ -19,7 +19,7 @@ import {
   sanitizeOriginalFilename,
 } from '../utils/uploadPaths'
 import { assertCategoryBelongsToGroup } from '../domain/academicGuards'
-import { ValidationStatus } from '../domain/academicRules'
+import { assertRequestedHoursValid, isAcademicallyApproved, ValidationStatus } from '../domain/academicRules'
 import { resolveCertificateAcademicLinks } from '../domain/resolveCertificateAcademicLinks'
 
 const certificateAcademicInclude = {
@@ -158,6 +158,12 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
       const grupo = requireNonEmpty(fields, certGrupoField(i))
       const horasRaw = requireNonEmpty(fields, certHorasField(i))
       const horas = parseHoras(horasRaw, certHorasField(i))
+      try {
+        assertRequestedHoursValid(horas)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Horas solicitadas invalidas'
+        throw new HttpError(msg, 400)
+      }
       const fieldName = certArquivoField(i)
       const f = files.get(fieldName)
       if (!f) {
@@ -273,13 +279,57 @@ export async function createSubmissionFromMultipart(request: FastifyRequest): Pr
   }
 }
 
+type CertificateWithValidationRow = {
+  horas: number
+  validation: null | {
+    status: string
+    approvedHours: number | null
+    requestedHours: number
+    activityGroupId: string
+    activityCategory: { groupId: string }
+  }
+}
+
+/**
+ * totalDeclaredHours: soma de Certificate.horas (valor do envio).
+ * totalAcademicApprovedHours: soma de approvedHours apenas para validacoes que entram na consolidacao.
+ */
+export function computeSubmissionHourTotals(
+  certificates: CertificateWithValidationRow[]
+): { totalDeclaredHours: number; totalAcademicApprovedHours: number } {
+  let totalDeclaredHours = 0
+  let totalAcademicApprovedHours = 0
+  for (let i = 0; i < certificates.length; i++) {
+    const c = certificates[i]
+    totalDeclaredHours += c.horas
+    const v = c.validation
+    if (
+      v &&
+      isAcademicallyApproved({
+        status: v.status,
+        approvedHours: v.approvedHours,
+        requestedHours: v.requestedHours,
+        activityGroupId: v.activityGroupId,
+        activityCategory: { groupId: v.activityCategory.groupId },
+      })
+    ) {
+      totalAcademicApprovedHours += v.approvedHours ?? 0
+    }
+  }
+  return { totalDeclaredHours, totalAcademicApprovedHours }
+}
+
 export async function listSubmissions(skip: number, take: number) {
-  return prisma.submission.findMany({
+  const rows = await prisma.submission.findMany({
     skip,
     take,
     orderBy: { createdAt: 'desc' },
     include: { student: true, certificates: certificateAcademicInclude },
   })
+  return rows.map((r) => ({
+    ...r,
+    ...computeSubmissionHourTotals(r.certificates),
+  }))
 }
 
 export async function getSubmissionById(id: string) {
@@ -290,7 +340,10 @@ export async function getSubmissionById(id: string) {
   if (!submission) {
     throw new HttpError('Submissao nao encontrada', 404)
   }
-  return submission
+  return {
+    ...submission,
+    ...computeSubmissionHourTotals(submission.certificates),
+  }
 }
 
 async function syncSubmissionStatusFromCertificates(submissionId: string): Promise<void> {
@@ -371,9 +424,13 @@ export async function updateSubmissionStatus(id: string, status: string) {
     }
   }
 
-  return prisma.submission.update({
+  const updated = await prisma.submission.update({
     where: { id },
     data: { status },
     include: { student: true, certificates: certificateAcademicInclude },
   })
+  return {
+    ...updated,
+    ...computeSubmissionHourTotals(updated.certificates),
+  }
 }

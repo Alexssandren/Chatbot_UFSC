@@ -4,6 +4,7 @@ import { StatsCard } from '../components/StatsCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { api } from '../services/api';
 import type { Submission, DashboardStats } from '../types';
+import { formatSubmissionHoursSummary } from '../types';
 import { Users, FileText, CheckCircle, XCircle, Search, Eye, PieChart } from 'lucide-react';
 
 export function Dashboard() {
@@ -103,7 +104,9 @@ export function Dashboard() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Matrícula</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Certificados / Horas</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Certificados / Horas (homolog.)
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
@@ -120,7 +123,7 @@ export function Dashboard() {
                       {sub.studentId}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {sub.totalCertificates} certs / {sub.totalHours}h
+                      {sub.totalCertificates} certs / {formatSubmissionHoursSummary(sub)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge status={sub.status} />

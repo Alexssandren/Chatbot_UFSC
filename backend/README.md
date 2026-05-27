@@ -35,12 +35,21 @@ O Prisma modela **grupos oficiais** (`ActivityGroup`, códigos GI–GV), **categ
 - **Multipart legado:** o mapeamento texto `cert_N_grupo` → par grupo/categoria está em [`src/domain/resolveCertificateAcademicLinks.ts`](src/domain/resolveCertificateAcademicLinks.ts), **temporário** até o cliente enviar IDs formais.
 - **Invariante:** `assertCategoryBelongsToGroup` em [`src/domain/academicGuards.ts`](src/domain/academicGuards.ts) garante que a categoria pertence ao grupo antes de persistir.
 
+### Integridade normativa (invariantes na escrita e leitura)
+
+- **Contrato de revisão:** [`src/domain/academicValidationContract.ts`](src/domain/academicValidationContract.ts) — valida `PATCH` contra o registro (`requestedHours`, par grupo/categoria, semântica `status`/`approvedHours`).
+- **Horas homologadas:** com `status === approved`, exige `approvedHours` finito, `> 0` e **`<= requestedHours`**.
+- **`requestedHours`:** deve ser finito e `> 0` na criação da submissão e antes de aceitar revisão; caso contrário `400` com mensagem explícita.
+- **Consolidação:** [`isAcademicallyApproved`](src/domain/academicRules.ts) só inclui registros `approved` que passam nas checagens acima (registros legados inconsistentes são ignorados com `console.warn`).
+
+**Reparo em dev:** após backups, `npm run repair-academic` normaliza combinações inválidas de `status`/`approvedHours` e `approved` não consolidáveis para `pending`/`null` quando seguro.
+
 **Migrations:** a pasta `20260208103000_certificate_approval_status` foi renomeada para `20260508103000_certificate_approval_status` para rodar **depois** de `init`. Se o seu `dev.db` já tinha aplicado a migration antiga e `migrate deploy` acusar coluna duplicada, use `npx prisma migrate resolve --applied 20260508103000_certificate_approval_status` e rode `migrate deploy` de novo.
 
 ### Consolidação acadêmica (UFSC) — Fases 2 e 3
 
 - **Serviço:** [`src/services/academicValidationService.ts`](src/services/academicValidationService.ts) — `getStudentAcademicConsolidation(studentId)`.
-- **Filtro contábil:** apenas validações com `status === approved` ([`isAcademicallyApproved`](src/domain/academicRules.ts)); horas de certificado com `(approvedHours ?? 0)`. **`requestedHours` não entra no cálculo.**
+- **Filtro contábil:** apenas validações que passam em [`isAcademicallyApproved`](src/domain/academicRules.ts) (status `approved`, `requestedHours` válido, `approvedHours` dentro do solicitado, categoria coerente com o grupo). Registros `approved` inconsistentes são ignorados na soma (com aviso em log).
 
 **Fase 2 (base):** todos os grupos GI–GV na resposta; ordem institucional em [`academicCatalog.ts`](src/domain/academicCatalog.ts) (`displayOrder`).
 
@@ -100,13 +109,15 @@ npm start
 |--------|------|-----------|
 | GET | `/health` | Verificação simples |
 | POST | `/api/submissions` | Nova submissão (multipart) |
-| GET | `/api/submissions` | Lista (`skip`, `take` opcionais; `take` máx. 100) |
-| GET | `/api/submissions/:id` | Detalhe com aluno e certificados |
+| GET | `/api/submissions` | Lista (`skip`, `take` opcionais; `take` máx. 100). Cada item inclui **`totalDeclaredHours`** e **`totalAcademicApprovedHours`** (ver abaixo). |
+| GET | `/api/submissions/:id` | Detalhe com aluno e certificados (mesmos totais por submissão). |
 | PATCH | `/api/submissions/:id/status` | JSON `{"status":"pending"\|"approved"\|"rejected"}` |
 | GET | `/api/students` | Lista de alunos (resumo) |
 | GET | `/api/students/:id` | Aluno com submissões e certificados |
 | GET | `/api/students/:id/academic-summary` | Consolidação acadêmica (Fase 3: approved/eligible, categorias, tetos) |
 | PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`). Resposta `200` com `certificateId` e `validation` atualizada. |
+
+**Totais por submissão:** `totalDeclaredHours` = soma de `Certificate.horas` (envio). `totalAcademicApprovedHours` = soma de `approvedHours` apenas onde [`isAcademicallyApproved`](src/domain/academicRules.ts) é verdadeiro (alinhado ao `GET .../academic-summary` por aluno).
 
 ### GET /api/students/:id/academic-summary
 
@@ -131,7 +142,7 @@ Corpo JSON:
 
 Resposta `200`: objeto com `certificateId` e `validation` (status, horas, parecer, `reviewedAt`, `requestedHours`, `activityGroup`, `activityCategory`).
 
-`400`: combinação inválida; `404`: certificado inexistente ou sem registro de validação.
+`400`: combinação inválida de status/horas; `approvedHours` acima de `requestedHours`; `requestedHours` inválido no certificado. `404`: certificado inexistente ou sem registro de validação acadêmica. `500`: inconsistência persistida entre grupo e categoria.
 
 ### Health
 

@@ -1,5 +1,5 @@
 import { prisma } from '../db'
-import { HttpError } from './submissionService'
+import { computeSubmissionHourTotals, HttpError } from './submissionService'
 
 export async function listStudents() {
   return prisma.student.findMany({
@@ -40,5 +40,11 @@ export async function getStudentWithSubmissions(id: string) {
   if (!student) {
     throw new HttpError('Aluno nao encontrado', 404)
   }
-  return student
+  return {
+    ...student,
+    submissions: student.submissions.map((s) => ({
+      ...s,
+      ...computeSubmissionHourTotals(s.certificates),
+    })),
+  }
 }
