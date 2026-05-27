@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { requireAuthenticatedSession } from '../auth/session'
 import { reviewCertificateAcademically, type AcademicReviewInput } from '../services/academicValidationService'
 import { getCertificateAcademicReviewHistory } from '../services/academicReviewHistoryReadService'
 import { HttpError } from '../services/submissionService'
@@ -25,7 +26,8 @@ const certificatesRoutes: FastifyPluginAsync = async (app) => {
       if (!body || typeof body !== 'object' || typeof body.status !== 'string') {
         return reply.code(400).send({ error: 'Body JSON deve conter status (string)' })
       }
-      const result = await reviewCertificateAcademically(id, body)
+      const userId = requireAuthenticatedSession(request)
+      const result = await reviewCertificateAcademically(id, body, userId)
       return reply.send(result)
     } catch (err) {
       if (err instanceof HttpError) {

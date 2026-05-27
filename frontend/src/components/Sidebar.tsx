@@ -12,12 +12,13 @@ export function Sidebar() {
     { to: '/students', icon: Users, label: 'Alunos' },
   ];
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/login', { replace: true });
   }
 
-  const initial = user?.username?.charAt(0).toUpperCase() ?? '?';
+  const label = user?.displayName ?? user?.username ?? '—';
+  const initial = label.charAt(0).toUpperCase();
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex md:flex-col h-full">
@@ -55,8 +56,8 @@ export function Sidebar() {
             {initial}
           </div>
           <div className="text-sm min-w-0">
-            <p className="font-medium text-gray-900 truncate">{user?.username ?? '—'}</p>
-            <p className="text-gray-500 text-xs">Admin</p>
+            <p className="font-medium text-gray-900 truncate">{label}</p>
+            <p className="text-gray-500 text-xs">Orientador</p>
           </div>
         </div>
         <button

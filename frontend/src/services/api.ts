@@ -29,14 +29,52 @@ function apiUrl(path: string): string {
   return `${base}${p}`;
 }
 
-/** Caminho relativo ao UPLOAD_DIR (ex.: requerimentos/id/arquivo.pdf) -> URL publica servida pelo Fastify. */
-export function uploadPublicUrl(relativePath: string): string {
+export type PublicUser = {
+  id: string;
+  username: string;
+  displayName: string;
+  role: string;
+};
+
+type ApiFetchOptions = RequestInit & {
+  /** Nao dispara handler global em 401 (ex.: bootstrap /auth/me). */
+  skipUnauthorizedHandler?: boolean;
+};
+
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
+export async function apiFetch(
+  path: string,
+  options: ApiFetchOptions = {}
+): Promise<Response> {
+  const { skipUnauthorizedHandler, ...init } = options;
+  const res = await fetch(apiUrl(path), {
+    ...init,
+    credentials: 'include',
+  });
+  if (
+    res.status === 401 &&
+    !skipUnauthorizedHandler &&
+    !path.includes('/api/auth/login') &&
+    !path.includes('/api/auth/me')
+  ) {
+    unauthorizedHandler?.();
+  }
+  return res;
+}
+
+/** Caminho relativo ao UPLOAD_DIR -> GET autenticado /api/files/* (cookie de sessao). */
+export function authenticatedFileUrl(relativePath: string): string {
   const encoded = relativePath
     .split('/')
     .filter((s) => s.length > 0)
     .map(encodeURIComponent)
     .join('/');
-  return apiUrl(`/uploads/${encoded}`);
+  return apiUrl(`/api/files/${encoded}`);
 }
 
 interface ApiStudent {
@@ -146,7 +184,7 @@ function mapCertificate(c: ApiCertificate): Certificate {
   return {
     id: c.id,
     filename: c.originalFilename,
-    url: uploadPublicUrl(c.fileRelativePath),
+    url: authenticatedFileUrl(c.fileRelativePath),
     hours: Number(c.horas),
     group: c.grupo,
     approvalStatus: mapBackendStatus(c.approvalStatus ?? 'pending'),
@@ -181,7 +219,7 @@ function mapRow(row: ApiSubmissionRow): Submission {
     status: mapBackendStatus(row.status),
     date: typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : '',
     requerimentoFilename: row.requerimentoOriginalName ?? 'requerimento.pdf',
-    requerimentoDownloadUrl: reqPath ? uploadPublicUrl(reqPath) : '#',
+    requerimentoDownloadUrl: reqPath ? authenticatedFileUrl(reqPath) : '#',
     certificates: certs.map(mapCertificate),
   };
 }
@@ -195,9 +233,38 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  login: async (username: string, password: string): Promise<PublicUser> => {
+    const res = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+      skipUnauthorizedHandler: true,
+    });
+    if (!res.ok) {
+      throw new Error('Credenciais invalidas');
+    }
+    const body = await parseJson<{ user: PublicUser }>(res);
+    return body.user;
+  },
+
+  logout: async (): Promise<void> => {
+    await apiFetch('/api/auth/logout', { method: 'POST', skipUnauthorizedHandler: true });
+  },
+
+  getCurrentUser: async (): Promise<PublicUser | null> => {
+    const res = await apiFetch('/api/auth/me', { skipUnauthorizedHandler: true });
+    if (res.status === 401) {
+      return null;
+    }
+    if (!res.ok) {
+      throw new Error(`Erro ao validar sessao: ${res.status}`);
+    }
+    const body = await parseJson<{ user: PublicUser }>(res);
+    return body.user;
+  },
+
   getSubmissions: async (): Promise<Submission[]> => {
-    const url = `${apiUrl('/api/submissions')}?take=100&skip=0`;
-    const res = await fetch(url);
+    const res = await apiFetch('/api/submissions?take=100&skip=0');
     if (!res.ok) {
       throw new Error(`Erro ao listar submissoes: ${res.status}`);
     }
@@ -206,8 +273,7 @@ export const api = {
   },
 
   getSubmissionById: async (id: string): Promise<Submission | undefined> => {
-    const url = apiUrl(`/api/submissions/${encodeURIComponent(id)}`);
-    const res = await fetch(url);
+    const res = await apiFetch(`/api/submissions/${encodeURIComponent(id)}`);
     if (res.status === 404) {
       return undefined;
     }
@@ -230,8 +296,7 @@ export const api = {
   },
 
   getStudents: async (): Promise<StudentListItem[]> => {
-    const url = apiUrl('/api/students');
-    const res = await fetch(url);
+    const res = await apiFetch('/api/students');
     if (!res.ok) {
       throw new Error(`Erro ao listar alunos: ${res.status}`);
     }
@@ -246,8 +311,7 @@ export const api = {
   },
 
   getStudentDetail: async (studentId: string): Promise<StudentDetail | undefined> => {
-    const url = apiUrl(`/api/students/${encodeURIComponent(studentId)}`);
-    const res = await fetch(url);
+    const res = await apiFetch(`/api/students/${encodeURIComponent(studentId)}`);
     if (res.status === 404) {
       return undefined;
     }
@@ -278,8 +342,9 @@ export const api = {
   },
 
   getStudentAcademicSummary: async (studentDbId: string): Promise<AcademicSummary> => {
-    const url = apiUrl(`/api/students/${encodeURIComponent(studentDbId)}/academic-summary`);
-    const res = await fetch(url);
+    const res = await apiFetch(
+      `/api/students/${encodeURIComponent(studentDbId)}/academic-summary`
+    );
     const text = await res.text();
     let payload: AcademicSummary | { error?: string };
     try {
@@ -305,12 +370,14 @@ export const api = {
       reviewNotes?: string | null;
     }
   ): Promise<AcademicReviewResult> => {
-    const url = apiUrl(`/api/certificates/${encodeURIComponent(certificateId)}/academic-review`);
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiFetch(
+      `/api/certificates/${encodeURIComponent(certificateId)}/academic-review`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
     const text = await res.text();
     let body: AcademicReviewResult | { error?: string };
     try {
@@ -329,10 +396,9 @@ export const api = {
   getCertificateAcademicReviewHistory: async (
     certificateId: string
   ): Promise<AcademicReviewHistoryResponse> => {
-    const url = apiUrl(
+    const res = await apiFetch(
       `/api/certificates/${encodeURIComponent(certificateId)}/academic-review/history`
     );
-    const res = await fetch(url);
     const text = await res.text();
     let body: AcademicReviewHistoryResponse | { error?: string };
     try {
@@ -358,14 +424,14 @@ export const api = {
     status: 'APROVADO' | 'REJEITADO' | 'PENDENTE'
   ): Promise<Submission> => {
     const backend = status === 'APROVADO' ? 'approved' : status === 'REJEITADO' ? 'rejected' : 'pending';
-    const url = apiUrl(
-      `/api/submissions/${encodeURIComponent(submissionId)}/certificates/${encodeURIComponent(certificateId)}/status`
+    const res = await apiFetch(
+      `/api/submissions/${encodeURIComponent(submissionId)}/certificates/${encodeURIComponent(certificateId)}/status`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: backend }),
+      }
     );
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: backend }),
-    });
     const payload = (await res.json().catch(() => ({}))) as ApiSubmissionRow | { error?: string };
     if (!res.ok) {
       throw new Error(
@@ -379,8 +445,7 @@ export const api = {
 
   updateStatus: async (id: string, status: 'APROVADO' | 'REJEITADO'): Promise<void> => {
     const backend = status === 'APROVADO' ? 'approved' : 'rejected';
-    const url = apiUrl(`/api/submissions/${encodeURIComponent(id)}/status`);
-    const res = await fetch(url, {
+    const res = await apiFetch(`/api/submissions/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: backend }),

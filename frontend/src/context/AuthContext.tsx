@@ -7,69 +7,63 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { api, type PublicUser } from '../services/api';
 
-export const STORAGE_KEY = 'validecert_session';
-
-const DEMO_USER = 'Vilson';
-const DEMO_PASSWORD = '1234';
-
-export type Session = {
-  username: string;
-};
+export type Session = PublicUser;
 
 export type AuthContextData = {
   user: Session | null;
   isAuthenticated: boolean;
   initialized: boolean;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
 };
-
-function readSession(): Session | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof (parsed as Session).username === 'string' &&
-      (parsed as Session).username === DEMO_USER
-    ) {
-      return { username: DEMO_USER };
-    }
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
-  } catch {
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
-}
 
 const AuthContext = createContext<AuthContextData | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Session | null>(() => readSession());
+  const [user, setUser] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    setInitialized(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await api.getCurrentUser();
+        if (!cancelled && me) {
+          setUser(me);
+        }
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setInitialized(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const login = useCallback((username: string, password: string) => {
-    const u = username.trim();
-    if (u === DEMO_USER && password === DEMO_PASSWORD) {
-      const session: Session = { username: DEMO_USER };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-      setUser(session);
+  const login = useCallback(async (username: string, password: string) => {
+    try {
+      const loggedIn = await api.login(username, password);
+      setUser(loggedIn);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   const value = useMemo<AuthContextData>(

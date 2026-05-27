@@ -2,7 +2,7 @@
 
 Sistema para **recebimento**, **armazenamento** e **análise operacional** de submissões de atividades complementares (requerimento + certificados em PDF), com painel web para o orientador.
 
-**Última atualização deste documento:** 26/05/2026
+**Última atualização deste documento:** 27/05/2026
 
 ---
 
@@ -16,7 +16,7 @@ Sempre que forem feitas alterações relevantes no projeto (nova funcionalidade,
 
 | Pasta | Conteúdo |
 |-------|----------|
-| [`backend/`](backend/) | API **Fastify** (TypeScript), **Prisma** + **SQLite**, upload multipart, arquivos estáticos em `/uploads/` |
+| [`backend/`](backend/) | API **Fastify** (TypeScript), **Prisma** + **SQLite**, upload multipart, PDFs via `GET /api/files/*` (autenticado) |
 | [`frontend/`](frontend/) | SPA **React 19** + **Vite** + **Tailwind CSS 4**, **React Router 7** |
 
 Documentação adicional por pacote:
@@ -34,26 +34,28 @@ Documentação adicional por pacote:
 - **Modelos:** `Student`, `Submission`, `Certificate`; domínio UFSC: `ActivityGroup`, `ActivityCategory` (`maxEligibleHours` para tetos normativos), `CertificateValidation` — ver [`backend/README.md`](backend/README.md).
 - **Uploads:** pastas `requerimentos/{submissionId}/` e `certificados/{submissionId}/` sob `UPLOAD_DIR`.
 - **API REST:** submissões (`POST/GET/PATCH`), alunos (`GET`); **consolidação normativa** `GET /api/students/:id/academic-summary` (cálculo **on-demand**, sem cache nem snapshot persistido); **`PATCH /api/certificates/:id/academic-review`** — revisão acadêmica (`CertificateValidation`). Ver [`backend/README.md`](backend/README.md).
-- **Arquivos públicos:** `@fastify/static` em **`/uploads/`** apontando para `UPLOAD_DIR` ([`backend/src/server.ts`](backend/src/server.ts)).
-- **CORS:** habilitado (`origin: true`) para desenvolvimento e integrações.
+- **Autenticação (Fase 8):** sessão server-side (cookie HttpOnly); `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`; painel protegido; `POST /api/submissions` permanece público (Moodle).
+- **Arquivos:** `GET /api/files/*` com sessão — não há mais `/uploads/` público.
+- **CORS:** `credentials: true` com `CORS_ORIGIN` explícito (ex.: `http://localhost:5173`).
 - **Seed:** `npm run db:seed` — dados de demonstração + PDFs mínimos (ver backend README; operação destrutiva).
 
 ### Frontend
 
 - **Rotas protegidas:** exceto `/login`, o app exige sessão ([`frontend/src/components/ProtectedRoute.tsx`](frontend/src/components/ProtectedRoute.tsx)).
-- **Autenticação atual:** **demonstração** via `localStorage` — usuário e senha fixos no cliente ([`frontend/src/context/AuthContext.tsx`](frontend/src/context/AuthContext.tsx)). **Não é segurança de produção.**
+- **Autenticação:** sessão real via cookie (`credentials: 'include'`); login em [`frontend/src/context/AuthContext.tsx`](frontend/src/context/AuthContext.tsx) contra a API.
 - **Páginas principais:**
   - `/` — Dashboard de submissões
   - `/submission/:id` — Detalhe de uma submissão
   - `/students` — Lista de alunos
   - `/students/:id` — Aluno com várias submissões e **resumo acadêmico** (consolidação normativa)
-  - `/login` — Login demo
+  - `/login` — Login do orientador
 - **Fase 5 (acadêmico no painel):** em `/students/:id`, card **Resumo acadêmico** (`GET .../academic-summary`); em cada certificado, **revisão acadêmica** separada do fluxo **operacional** (`approvalStatus` ≠ `CertificateValidation.status`). Após salvar revisão, a UI **reidrata** submissão e resumo sem refresh manual. O tipo `Submission.studentDbId` guarda o UUID Prisma do aluno; `Submission.studentId` continua sendo a **matrícula** (dívida de nomenclatura documentada em código).
 - **Painel do orientador (operacional):** aprovação/rejeição de submissão (quando aplicável) e **aprovação por arquivo** com feedback visual ([`frontend/src/components/SubmissionDetailContent.tsx`](frontend/src/components/SubmissionDetailContent.tsx)).
 - **Fase 7 (elegibilidade acadêmica):** o card de resumo usa `academicEligibility` do `GET .../academic-summary` (apto/não apto, horas faltantes, grupos pendentes). Banner e pendências **não** usam `eligible` nem recálculo local (`Math.max` para shortfall).
 - **Consolidação no servidor:** o frontend **não** recalcula elegibilidade normativa (limiares 144/3/20, `pendingGroups`, aptidão); apenas exibe o JSON da API e validação mínima de formulário (horas quando status acadêmico é aprovado).
 - **PDFs:** visualização em **modal** com `iframe`, download, loading e falha por **timeout (15s)**; distinção visual **Requerimento** vs **Certificado** ([`frontend/src/components/PdfViewerModal.tsx`](frontend/src/components/PdfViewerModal.tsx), [`DocumentFileActions.tsx`](frontend/src/components/DocumentFileActions.tsx)).
-- **API no dev:** proxy Vite de `/api` e `/uploads` para o backend ([`frontend/vite.config.ts`](frontend/vite.config.ts)). Opcional: `VITE_API_URL` em [`frontend/.env.example`](frontend/.env.example).
+- **Histórico acadêmico:** exibe `changedBy.displayName` quando o PATCH foi feito por usuário autenticado; repair sem autor.
+- **API no dev:** proxy Vite de `/api` para o backend ([`frontend/vite.config.ts`](frontend/vite.config.ts)). Opcional: `VITE_API_URL` em [`frontend/.env.example`](frontend/.env.example).
 
 ### Scripts na raiz (Windows)
 
@@ -68,7 +70,9 @@ Documentação adicional por pacote:
 2. **Frontend:** em `frontend/`, `npm install`, `npm run dev` (com backend na porta esperada pelo proxy, normalmente **3000**).
 3. Ou usar [`iniciar.bat`](iniciar.bat) na raiz (Windows).
 
-Credenciais **apenas para demo** do login (definidas no frontend): conferir `AuthContext.tsx` — altere lá se mudar a demo.
+Credenciais demo (após `npm run db:seed` no backend): usuário `orientador`, senha `orientador123`.
+
+**Sessão in-memory:** reiniciar o backend desloga todos; múltiplas instâncias não compartilham sessão — ver [`backend/README.md`](backend/README.md).
 
 ---
 
@@ -76,8 +80,8 @@ Credenciais **apenas para demo** do login (definidas no frontend): conferir `Aut
 
 Prioridades dependem do escopo da disciplina/produto; lista não ordenada:
 
-1. **Autenticação real** — sessão ou JWT emitido pelo backend, expiração, perfis (orientador/aluno/admin), remoção de credenciais hardcoded no cliente.
-2. **Proteção de `/uploads/`** — hoje qualquer pessoa com a URL pode tentar acessar o arquivo; avaliar URLs assinadas, rota autenticada ou reverse proxy com regras.
+1. **Perfis e RBAC** — hoje qualquer usuário logado acessa o painel; `role` é metadado apenas.
+2. **Credencial de serviço para Moodle** — `POST /api/submissions` segue público; API key simples em fase futura se necessário.
 3. **Validação de upload** — restringir tipos (ex.: só PDF), tamanho e mensagens de erro alinhadas ao Moodle/chatbot.
 4. **Integração chatbot/Moodle** — seguir checklist em [`backend/README.md`](backend/README.md) (PHP/envio multipart).
 5. **Testes automatizados** — API (Fastify), componentes críticos do front, ou E2E smoke.
@@ -92,6 +96,7 @@ Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anota�
 
 | Data | Notas |
 |------|--------|
+| 27/05/2026 | Fase 8: sessão server-side, `User`, `changedById` no histórico, `GET /api/files/*`, login `orientador`; `POST /api/submissions` público. |
 | 27/05/2026 | Fase 7: `academicEligibility` em `GET .../academic-summary` (`studentAcademicEligibility.ts`); UI apto/não apto e grupos pendentes; `eligible`/`remainingEligibleHours` deprecated conceitualmente. |
 | 27/05/2026 | Fase 6: `AcademicReviewHistory` (append-only), `applyAcademicReviewChange`, histórico transacional no PATCH e no `repair-academic`; `changeReason` opcional; `GET .../academic-review/history`. |
 | 26/05/2026 | Fase 5: `PATCH /api/certificates/:id/academic-review` (retorno com `validation`); painel com resumo acadêmico em `StudentDetails`, formulário `AcademicReviewForm` por certificado, mapeamento de `validation` nas submissões; `studentDbId` no tipo `Submission` (UUID vs matrícula). |

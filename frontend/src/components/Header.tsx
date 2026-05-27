@@ -6,8 +6,8 @@ export function Header() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/login', { replace: true });
   }
 
@@ -21,7 +21,9 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="hidden sm:inline text-sm text-gray-600">{user?.username}</span>
+        <span className="hidden sm:inline text-sm text-gray-600">
+          {user?.displayName ?? user?.username}
+        </span>
         <button
           type="button"
           onClick={handleLogout}

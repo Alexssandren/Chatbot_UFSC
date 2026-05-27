@@ -286,7 +286,8 @@ function mapDomainErrorToHttp(err: unknown): HttpError {
 
 export async function reviewCertificateAcademically(
   certificateId: string,
-  input: AcademicReviewInput
+  input: AcademicReviewInput,
+  changedById: string
 ): Promise<AcademicReviewResult> {
   const status = parseValidationStatus(String(input.status ?? ''))
   const approvedHoursNorm = normalizeApprovedHoursForPersist(status, input.approvedHours)
@@ -374,6 +375,7 @@ export async function reviewCertificateAcademically(
       after,
       source: 'academic_review_patch',
       changeReason,
+      changedById,
       reviewedAt: now,
     })
   })

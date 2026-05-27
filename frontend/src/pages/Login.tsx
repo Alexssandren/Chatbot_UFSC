@@ -48,8 +48,7 @@ export function Login() {
 
     setIsSubmitting(true);
     try {
-      await new Promise((r) => setTimeout(r, 250));
-      const ok = login(username, password);
+      const ok = await login(username, password);
       if (!ok) {
         setError('Usuário ou senha inválidos.');
         return;
@@ -70,7 +69,7 @@ export function Login() {
             <span>ValidaCert</span>
           </div>
           <p className="text-center text-sm text-gray-600">
-            Acesso ao painel (demonstração)
+            Acesso ao painel do orientador
           </p>
         </div>
 

@@ -140,11 +140,17 @@ export type AcademicReviewHistorySnapshot = {
   reviewNotes: string | null;
 };
 
+export type AcademicReviewHistoryChangedBy = {
+  id: string;
+  displayName: string;
+};
+
 export type AcademicReviewHistoryEntry = {
   id: string;
   changedAt: string;
   source: AcademicReviewHistorySource;
   changeReason: string | null;
+  changedBy?: AcademicReviewHistoryChangedBy;
   before: AcademicReviewHistorySnapshot;
   after: AcademicReviewHistorySnapshot;
 };

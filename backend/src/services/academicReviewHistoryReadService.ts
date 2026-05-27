@@ -36,6 +36,9 @@ export async function getCertificateAcademicReviewHistory(
     where: { validationId: validation.id },
     orderBy: [{ changedAt: 'asc' }, { id: 'asc' }],
     take: HISTORY_READ_LIMIT,
+    include: {
+      changedBy: { select: { id: true, displayName: true } },
+    },
   })
 
   if (rows.length >= HISTORY_READ_LIMIT) {
@@ -47,6 +50,20 @@ export async function getCertificateAcademicReviewHistory(
   return {
     certificateId: cert.id,
     validationId: validation.id,
-    entries: rows.map(entryFromHistoryRow),
+    entries: rows.map((row) =>
+      entryFromHistoryRow({
+        id: row.id,
+        previousStatus: row.previousStatus,
+        newStatus: row.newStatus,
+        previousApprovedHours: row.previousApprovedHours,
+        newApprovedHours: row.newApprovedHours,
+        previousReviewNotes: row.previousReviewNotes,
+        newReviewNotes: row.newReviewNotes,
+        source: row.source,
+        changeReason: row.changeReason,
+        changedAt: row.changedAt,
+        changedBy: row.changedBy,
+      })
+    ),
   }
 }

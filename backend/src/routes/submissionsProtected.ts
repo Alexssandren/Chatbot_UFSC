@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
 import {
-  createSubmissionFromMultipart,
   getSubmissionById,
   HttpError,
   listSubmissions,
@@ -8,30 +7,7 @@ import {
   updateSubmissionStatus,
 } from '../services/submissionService'
 
-const submissionsRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/submissions', async (request, reply) => {
-    try {
-      const result = await createSubmissionFromMultipart(request)
-      return reply.code(201).send({
-        success: true,
-        submissionId: result.submissionId,
-      })
-    } catch (err) {
-      if (err instanceof HttpError) {
-        request.log.warn({ err }, '[submission] validacao ou regra http')
-        return reply.code(err.statusCode).send({
-          success: false,
-          message: err.message,
-        })
-      }
-      request.log.error({ err }, '[submission] erro interno ou parsing')
-      return reply.code(500).send({
-        success: false,
-        message: 'Erro interno',
-      })
-    }
-  })
-
+const submissionsProtectedRoutes: FastifyPluginAsync = async (app) => {
   app.get('/submissions', async (request, reply) => {
     const q = request.query as Record<string, string | undefined>
     const skip = Math.max(0, Number(q.skip ?? 0) || 0)
@@ -95,4 +71,4 @@ const submissionsRoutes: FastifyPluginAsync = async (app) => {
   })
 }
 
-export default submissionsRoutes
+export default submissionsProtectedRoutes

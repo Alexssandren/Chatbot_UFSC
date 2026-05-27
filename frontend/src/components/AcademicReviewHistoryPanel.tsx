@@ -77,6 +77,11 @@ function HistoryEntryItem({ entry }: { entry: AcademicReviewHistoryEntry }) {
             Revisão manual
           </span>
         )}
+        {entry.changedBy ? (
+          <span className="text-xs text-gray-600">
+            Revisado por {entry.changedBy.displayName}
+          </span>
+        ) : null}
       </div>
 
       <div className="space-y-1">

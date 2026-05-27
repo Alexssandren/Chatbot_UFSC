@@ -15,6 +15,8 @@ API Node.js (Fastify + TypeScript + Prisma + SQLite) para receber submissões mu
    - `PORT` – padrão `3000`
    - `UPLOAD_DIR` – padrão `./uploads` (relativo ao diretório de trabalho ao iniciar o servidor)
    - `NODE_ENV` – em `production`, valores dos campos da submissão não são logados por padrão (somente chaves); use `DEBUG_SUBMISSIONS=1` para forçar log detalhado.
+   - `SESSION_SECRET` – obrigatório (mínimo 16 caracteres); assina o cookie de sessão.
+   - `CORS_ORIGIN` – origem do frontend com credenciais (padrão dev: `http://localhost:5173`).
 
 2. Instale dependências e aplique migrações:
 
@@ -52,13 +54,13 @@ O Prisma modela **grupos oficiais** (`ActivityGroup`, códigos GI–GV), **categ
 - **Domínio:** diff e builder em [`src/domain/academicReviewHistory.ts`](src/domain/academicReviewHistory.ts).
 - **Writers oficiais:** `PATCH /api/certificates/:id/academic-review` (`source=academic_review_patch`) e `npm run repair-academic` (`source=repair_script`).
 - **`changeReason`:** motivo opcional **desta transição** (texto livre no histórico). Distinto de `reviewNotes` (parecer no estado atual da validação).
-- **`changedBy`:** sempre `null` nesta fase (sem auth real).
+- **`changedById`:** preenchido no PATCH com o usuário da sessão; `repair_script` permanece `null`.
 - **Sem mudança real:** PATCH idempotente não cria histórico e não atualiza `reviewedAt`.
-- **Leitura HTTP (Fase Final):** `GET /api/certificates/:id/academic-review/history` — projeção **read-only** via [`src/services/academicReviewHistoryReadService.ts`](src/services/academicReviewHistoryReadService.ts). Não altera estado nem consolidação; não expõe `changedBy`.
+- **Leitura HTTP:** `GET /api/certificates/:id/academic-review/history` — expõe `changedBy: { id, displayName }` **somente** quando houver FK (sem fallback “Sistema”).
 
 #### Limitações da auditabilidade
 
-1. **Sem identidade real de usuário** — `changedBy` permanece `null`. Trilha temporal **não** é responsabilização; não tratar como auditoria corporativa completa.
+1. **Responsabilização mínima** — apenas revisões via PATCH autenticado; repair e entradas antigas sem `changedBy`.
 2. **Sem reconstrução temporal do resumo** — o histórico registra transições **por certificado**, não snapshots de `GET .../academic-summary`. Reconstruir elegibilidade passada exige recalcular manualmente a partir do estado em cada data.
 3. **Sem retenção garantida** — `onDelete: Cascade` em `AcademicReviewHistory` apaga o histórico junto com `CertificateValidation`/certificado (aceitável em dev/demo; provável mudança em produção).
 4. **Dois writers** — PATCH humano e repair automático alteram estado normativo; executar repair com consciência de impacto na consolidação.
@@ -106,7 +108,7 @@ Pilha de projeções: `CertificateValidation` (canônico) → consolidação (`a
 
 ### Dados de demonstração (`db:seed`)
 
-O script `npm run db:seed` recria um conjunto fixo de alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `/uploads/...` sem enviar multipart.
+O script `npm run db:seed` recria usuário demo (`orientador`), alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `GET /api/files/...` (com login) sem enviar multipart.
 
 **Atenção:** o seed é **destrutivo**: apaga `CertificateValidation`, `Certificate`, `Submission`, `Student`, `ActivityCategory`, `ActivityGroup` e remove as pastas `requerimentos/` e `certificados/` dentro do `UPLOAD_DIR` (não altera `tmp/`). Em seguida recria grupos/categorias oficiais (GI–GV), dados de demo e PDFs mínimos. Use apenas em ambiente de desenvolvimento ou antes de uma demo controlada.
 
@@ -211,12 +213,29 @@ Resposta `200`:
 - `entries: []` quando não houve transições (inclui certificados legados pré-Fase 6).
 - Ordenação: `changedAt` asc, desempate `id` asc.
 - Limite interno: 500 entradas (sem parâmetros de paginação na API).
-- `source`: `academic_review_patch` (PATCH) ou `repair_script` (`npm run repair-academic`). **Não** identifica usuário.
-- `changedBy` **não** é exposto.
+- `source`: `academic_review_patch` (PATCH) ou `repair_script` (`npm run repair-academic`).
+- `changedBy` (opcional): `{ "id", "displayName" }` quando `changedById` foi gravado no PATCH; omitido em `repair_script` e entradas legadas.
 
-`404`: certificado inexistente ou sem `CertificateValidation`. `500`: erro interno.
+`404`: certificado inexistente ou sem `CertificateValidation`. `401`: sem sessão (rota protegida). `500`: erro interno.
 
-**Limitações:** sem auth; sem snapshots temporais do resumo do aluno; histórico apagado em cascade com certificado/validação.
+**Limitações:** sem snapshots temporais do resumo do aluno; histórico apagado em cascade com certificado/validação.
+
+### Autenticação e sessão (Fase 8)
+
+- **Sessão:** `@fastify/session` + cookie HttpOnly (`SameSite=Lax`; `Secure` em `NODE_ENV=production`).
+- **Rotas de entrada:** `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` (session-aware — retorna 401 sem cookie válido).
+- **Painel:** rotas registradas em [`src/routes/protected/index.ts`](src/routes/protected/index.ts) com hook `onRequest` único (não repetir `preHandler` por arquivo).
+- **Integração pública:** `POST /api/submissions` permanece **sem** sessão (Moodle/chatbot).
+- **Arquivos:** `GET /api/files/*` — stream autenticado; prefixos permitidos: `requerimentos/`, `certificados/`. `/uploads/` público foi removido.
+- **Seed:** usuário demo `orientador` / `orientador123` (bcrypt).
+
+#### Limitações operacionais da sessão (não é bug)
+
+| Comportamento | Causa |
+|---------------|-------|
+| Restart do backend desloga todos | Store in-memory do `@fastify/session` |
+| Múltiplas instâncias não compartilham sessão | Sem Redis/DB store |
+| `tsx watch` pode invalidar cookie | Reinício do processo Node |
 
 ### Health
 

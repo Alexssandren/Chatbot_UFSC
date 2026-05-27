@@ -10,11 +10,17 @@ export type AcademicReviewSnapshot = {
 
 export type AcademicReviewHistorySource = 'academic_review_patch' | 'repair_script'
 
+export type AcademicReviewHistoryChangedBy = {
+  id: string
+  displayName: string
+}
+
 export type AcademicReviewHistoryEntry = {
   id: string
   changedAt: string
   source: AcademicReviewHistorySource
   changeReason: string | null
+  changedBy?: AcademicReviewHistoryChangedBy
   before: AcademicReviewSnapshot
   after: AcademicReviewSnapshot
 }
@@ -37,6 +43,7 @@ export type AcademicReviewHistoryDbRow = {
   source: string
   changeReason: string | null
   changedAt: Date
+  changedBy: { id: string; displayName: string } | null
 }
 
 function parseHistorySource(raw: string): AcademicReviewHistorySource {
@@ -45,7 +52,7 @@ function parseHistorySource(raw: string): AcademicReviewHistorySource {
 
 /** Converte row persistida em DTO publico (GET history). */
 export function entryFromHistoryRow(row: AcademicReviewHistoryDbRow): AcademicReviewHistoryEntry {
-  return {
+  const entry: AcademicReviewHistoryEntry = {
     id: row.id,
     changedAt: row.changedAt.toISOString(),
     source: parseHistorySource(row.source),
@@ -61,6 +68,13 @@ export function entryFromHistoryRow(row: AcademicReviewHistoryDbRow): AcademicRe
       reviewNotes: normalizeReviewNotes(row.newReviewNotes),
     },
   }
+  if (row.changedBy) {
+    entry.changedBy = {
+      id: row.changedBy.id,
+      displayName: row.changedBy.displayName,
+    }
+  }
+  return entry
 }
 
 export function normalizeReviewNotes(raw: string | null | undefined): string | null {
@@ -111,7 +125,11 @@ export function buildHistoryRow(
   validationId: string,
   before: AcademicReviewSnapshot,
   after: AcademicReviewSnapshot,
-  opts: { source: AcademicReviewHistorySource; changeReason?: string | null }
+  opts: {
+    source: AcademicReviewHistorySource
+    changeReason?: string | null
+    changedById?: string | null
+  }
 ) {
   return {
     validationId,
@@ -123,6 +141,6 @@ export function buildHistoryRow(
     newReviewNotes: after.reviewNotes,
     source: opts.source,
     changeReason: normalizeChangeReason(opts.changeReason),
-    changedBy: null as string | null,
+    changedById: opts.changedById ?? null,
   }
 }

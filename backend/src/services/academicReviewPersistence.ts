@@ -12,6 +12,7 @@ export type ApplyAcademicReviewChangeParams = {
   after: AcademicReviewSnapshot
   source: AcademicReviewHistorySource
   changeReason?: string | null
+  changedById?: string | null
   reviewedAt: Date
 }
 
@@ -27,6 +28,7 @@ export async function applyAcademicReviewChange(
     data: buildHistoryRow(params.validationId, params.before, params.after, {
       source: params.source,
       changeReason: params.changeReason,
+      changedById: params.changedById,
     }),
   })
   await tx.certificateValidation.update({

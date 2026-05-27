@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String                  @id @default(uuid())
+  username      String                  @unique
+  passwordHash  String
+  displayName   String
+  role          String                  @default("advisor")
+  createdAt     DateTime                @default(now())
+  reviewHistory AcademicReviewHistory[]
+}
+
 model Student {
   id             String       @id @default(uuid())
   externalUserId String       @unique
@@ -118,8 +128,8 @@ model AcademicReviewHistory {
   /// Motivo da transicao (livre, opcional). Distinto de reviewNotes no estado atual.
   changeReason          String?
   changedAt             DateTime              @default(now())
-  /// Reservado para auth futura; null nesta fase.
-  changedBy             String?
+  changedById           String?
+  changedBy             User?                 @relation(fields: [changedById], references: [id], onDelete: SetNull)
 
   @@index([validationId, changedAt])
 }

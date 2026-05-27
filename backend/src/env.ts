@@ -8,6 +8,8 @@ export type AppEnv = {
   databaseUrl: string
   uploadDir: string
   nodeEnv: string
+  sessionSecret: string
+  corsOrigin: string
   /** Loga valores dos campos texto da submissão (PII); chaves sempre podem ser logadas no handler. */
   submissionLogFieldValues: boolean
 }
@@ -28,6 +30,14 @@ export function loadEnv(): AppEnv {
   }
   const uploadDir = resolve(process.cwd(), process.env.UPLOAD_DIR ?? './uploads')
   const nodeEnv = process.env.NODE_ENV ?? 'development'
+  const sessionSecret = process.env.SESSION_SECRET?.trim() ?? ''
+  if (sessionSecret.length < 16) {
+    throw new Error(
+      'SESSION_SECRET ausente ou curto demais (minimo 16 caracteres). Copie .env.example para .env.'
+    )
+  }
+  const corsOrigin =
+    process.env.CORS_ORIGIN?.trim() || 'http://localhost:5173'
   const debugFlag =
     process.env.DEBUG_SUBMISSIONS === '1' || process.env.DEBUG_SUBMISSIONS === 'true'
   const submissionLogFieldValues = nodeEnv !== 'production' || debugFlag
@@ -36,6 +46,8 @@ export function loadEnv(): AppEnv {
     databaseUrl,
     uploadDir,
     nodeEnv,
+    sessionSecret,
+    corsOrigin,
     submissionLogFieldValues,
   }
   return cached

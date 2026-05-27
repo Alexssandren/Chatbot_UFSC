@@ -1,5 +1,6 @@
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
+import bcrypt from 'bcrypt'
 import { PrismaClient } from '@prisma/client'
 import {
   CATEGORY_IDS,
@@ -208,8 +209,34 @@ async function writeDemoFiles(uploadDir: string): Promise<void> {
   }
 }
 
+const DEMO_ADVISOR = {
+  username: 'orientador',
+  password: 'orientador123',
+  displayName: 'Orientador Demo',
+} as const
+
+async function seedDemoUser(): Promise<void> {
+  const passwordHash = await bcrypt.hash(DEMO_ADVISOR.password, 10)
+  await prisma.user.upsert({
+    where: { username: DEMO_ADVISOR.username },
+    create: {
+      username: DEMO_ADVISOR.username,
+      passwordHash,
+      displayName: DEMO_ADVISOR.displayName,
+      role: 'advisor',
+    },
+    update: {
+      passwordHash,
+      displayName: DEMO_ADVISOR.displayName,
+      role: 'advisor',
+    },
+  })
+}
+
 async function main(): Promise<void> {
   const { uploadDir } = loadEnv()
+
+  await seedDemoUser()
 
   await prisma.certificateValidation.deleteMany()
   await prisma.certificate.deleteMany()
@@ -299,7 +326,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed concluido: grupos/categorias academicas, ${STUDENTS.length} alunos, ${SUBMISSIONS.length} submissoes, arquivos em ${uploadDir}.`
+    `Seed concluido: usuario ${DEMO_ADVISOR.username}, grupos/categorias academicas, ${STUDENTS.length} alunos, ${SUBMISSIONS.length} submissoes, arquivos em ${uploadDir}.`
   )
 }
 
