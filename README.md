@@ -53,6 +53,7 @@ Documentação adicional por pacote:
 - **Painel do orientador (operacional):** aprovação/rejeição de submissão (quando aplicável) e **aprovação por arquivo** com feedback visual ([`frontend/src/components/SubmissionDetailContent.tsx`](frontend/src/components/SubmissionDetailContent.tsx)).
 - **Fase 7 (elegibilidade acadêmica):** o card de resumo usa `academicEligibility` do `GET .../academic-summary` (apto/não apto, horas faltantes, grupos pendentes). Banner e pendências **não** usam `eligible` nem recálculo local (`Math.max` para shortfall).
 - **Consolidação no servidor:** o frontend **não** recalcula elegibilidade normativa (limiares 144/3/20, `pendingGroups`, aptidão); apenas exibe o JSON da API e validação mínima de formulário (horas quando status acadêmico é aprovado).
+- **Fase 9 (PDF consolidado):** em `/students/:id`, botão **Baixar relatório consolidado** → `GET /api/students/:id/consolidated-report.pdf` (download direto, sem preview). Totais e aptidão vêm do mesmo motor de `academic-summary`.
 - **PDFs:** visualização em **modal** com `iframe`, download, loading e falha por **timeout (15s)**; distinção visual **Requerimento** vs **Certificado** ([`frontend/src/components/PdfViewerModal.tsx`](frontend/src/components/PdfViewerModal.tsx), [`DocumentFileActions.tsx`](frontend/src/components/DocumentFileActions.tsx)).
 - **Histórico acadêmico:** exibe `changedBy.displayName` quando o PATCH foi feito por usuário autenticado; repair sem autor.
 - **API no dev:** proxy Vite de `/api` para o backend ([`frontend/vite.config.ts`](frontend/vite.config.ts)). Opcional: `VITE_API_URL` em [`frontend/.env.example`](frontend/.env.example).
@@ -96,6 +97,7 @@ Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anota�
 
 | Data | Notas |
 |------|--------|
+| 27/05/2026 | Fase 9: `GET /api/students/:id/consolidated-report.pdf` (PDFKit, sob demanda); botão de download no detalhe do aluno; testes `npm test` no backend. |
 | 27/05/2026 | Fase 8: sessão server-side, `User`, `changedById` no histórico, `GET /api/files/*`, login `orientador`; `POST /api/submissions` público. |
 | 27/05/2026 | Fase 7: `academicEligibility` em `GET .../academic-summary` (`studentAcademicEligibility.ts`); UI apto/não apto e grupos pendentes; `eligible`/`remainingEligibleHours` deprecated conceitualmente. |
 | 27/05/2026 | Fase 6: `AcademicReviewHistory` (append-only), `applyAcademicReviewChange`, histórico transacional no PATCH e no `repair-academic`; `changeReason` opcional; `GET .../academic-review/history`. |

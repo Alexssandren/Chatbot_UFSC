@@ -46,13 +46,14 @@ export function AcademicSummaryCard({ summary }: Props) {
       {!isApto ? (
         <ul className="mb-6 space-y-1 text-sm text-gray-700">
           <li>
-            Requisito de horas totais:{' '}
+            Minimo {summary.requirements.minimumTotalHours}h elegiveis no total (todos os grupos):{' '}
             <span className="font-medium">
               {requirementLabel(summary.requirements.meetsTotalHoursRequirement)}
             </span>
           </li>
           <li>
-            Requisito de grupos distintos:{' '}
+            Minimo {summary.requirements.minimumDistinctGroups} grupos com{' '}
+            {summary.requirements.minimumHoursPerGroup}h elegiveis cada:{' '}
             <span className="font-medium">
               {requirementLabel(summary.requirements.meetsDistinctGroupsRequirement)}
             </span>

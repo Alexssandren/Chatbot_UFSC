@@ -94,7 +94,7 @@ O Prisma modela **grupos oficiais** (`ActivityGroup`, códigos GI–GV), **categ
 
 Pilha de projeções: `CertificateValidation` (canônico) → consolidação (`academic-summary`) → **`academicEligibility`** (elegibilidade normativa derivada, **não persistida**).
 
-- **Domínio:** [`src/domain/studentAcademicEligibility.ts`](src/domain/studentAcademicEligibility.ts) — `deriveAcademicEligibility`, `pendingGroups`, `remainingHours`, `status` (`apto` | `nao_apto`). Constantes `MIN_*` importadas apenas de [`academicRules.ts`](src/domain/academicRules.ts).
+- **Domínio:** [`src/domain/studentAcademicEligibility.ts`](src/domain/studentAcademicEligibility.ts) — `deriveAcademicEligibility`, `pendingGroups`, `remainingHours`, `status` (`apto` | `nao_apto`). Regra de aptidão canônica em [`isStudentNormativelyEligible`](src/domain/academicRules.ts): **>= 144h elegíveis no total** e **>= 3 grupos validados** (cada grupo com **>= 20h elegíveis**). Constantes `MIN_*` apenas em [`academicRules.ts`](src/domain/academicRules.ts).
 - **Serviço:** após montar `groups[]` e totais, `getStudentAcademicConsolidation` chama `deriveAcademicEligibility` uma vez; `eligible` e `remainingEligibleHours` são **espelhos** do bloco oficial (nunca recalculados em paralelo).
 - **Sem endpoint separado, sem migration, sem writer novo.**
 
@@ -152,6 +152,7 @@ npm start
 | GET | `/api/students` | Lista de alunos (resumo) |
 | GET | `/api/students/:id` | Aluno com submissões e certificados |
 | GET | `/api/students/:id/academic-summary` | Consolidação acadêmica + `academicEligibility` (Fase 7) |
+| GET | `/api/students/:id/consolidated-report.pdf` | PDF consolidado sob demanda (Fase 9; sessão obrigatória; `Content-Disposition: attachment`) |
 | PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`, `changeReason` opcional). Grava histórico quando há mudança real. Resposta `200` inalterada. |
 | GET | `/api/certificates/:id/academic-review/history` | Histórico read-only de transições (`entries[]` com `before`/`after`, `source`, `changeReason`). `200` com `entries: []` se não houver transições. |
 
@@ -173,6 +174,16 @@ Resposta `200`: tipo `AcademicConsolidation` em [`src/services/academicValidatio
 **Breaking change (Fase 3):** o campo top-level `remainingHours` foi removido; use `academicEligibility.remainingHours` ou `remainingEligibleHours` (deprecated).
 
 `404`: aluno inexistente.
+
+### GET /api/students/:id/consolidated-report.pdf (Fase 9)
+
+Geração **sob demanda** de PDF consolidado (PDFKit). Reutiliza `getStudentAcademicConsolidation` para totais e elegibilidade; linhas de atividades vêm de `CertificateValidation` filtradas por [`isAcademicallyApproved`](src/domain/academicRules.ts).
+
+- `200`: `application/pdf`, `Content-Disposition: attachment`
+- `401`: sem sessão
+- `404`: aluno inexistente
+
+Código: [`src/services/academicReportService.ts`](src/services/academicReportService.ts), [`src/pdf/renderConsolidatedReportPdf.ts`](src/pdf/renderConsolidatedReportPdf.ts).
 
 ### PATCH /api/certificates/:id/academic-review
 

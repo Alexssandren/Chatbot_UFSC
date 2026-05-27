@@ -341,6 +341,26 @@ export const api = {
     };
   },
 
+  downloadStudentConsolidatedReport: async (studentDbId: string): Promise<Blob> => {
+    const res = await apiFetch(
+      `/api/students/${encodeURIComponent(studentDbId)}/consolidated-report.pdf`
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Erro ao gerar relatorio: ${res.status}`;
+      try {
+        const body = text ? (JSON.parse(text) as { error?: string }) : {};
+        if (typeof body.error === 'string') {
+          msg = body.error;
+        }
+      } catch {
+        /* resposta nao-JSON */
+      }
+      throw new Error(msg);
+    }
+    return res.blob();
+  },
+
   getStudentAcademicSummary: async (studentDbId: string): Promise<AcademicSummary> => {
     const res = await apiFetch(
       `/api/students/${encodeURIComponent(studentDbId)}/academic-summary`

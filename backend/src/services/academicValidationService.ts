@@ -4,7 +4,10 @@ import { validateAcademicReviewAgainstStoredValidation } from '../domain/academi
 import {
   applyCategoryEligibleCap,
   isAcademicallyApproved,
+  isGroupValidated,
   isValidApprovedHoursForStatus,
+  meetsTotalEligibleHoursRequirement,
+  meetsValidatedGroupsRequirement,
   MIN_DISTINCT_GROUPS,
   MIN_HOURS_PER_GROUP,
   MIN_TOTAL_HOURS,
@@ -191,7 +194,7 @@ export async function getStudentAcademicConsolidation(
     const g = activityGroups[i]
     const approvedHours = approvedByGroupId.get(g.id) ?? 0
     const eligibleHours = eligibleByGroupId.get(g.id) ?? 0
-    const meetsMinimumHours = eligibleHours >= MIN_HOURS_PER_GROUP
+    const meetsMinimumHours = isGroupValidated(eligibleHours)
     if (meetsMinimumHours) {
       validGroupsCount += 1
     }
@@ -206,8 +209,8 @@ export async function getStudentAcademicConsolidation(
     })
   }
 
-  const meetsTotalHoursRequirement = totalEligibleHours >= MIN_TOTAL_HOURS
-  const meetsDistinctGroupsRequirement = validGroupsCount >= MIN_DISTINCT_GROUPS
+  const meetsTotalHoursRequirement = meetsTotalEligibleHoursRequirement(totalEligibleHours)
+  const meetsDistinctGroupsRequirement = meetsValidatedGroupsRequirement(validGroupsCount)
 
   const academicEligibility = deriveAcademicEligibility({
     totalEligibleHours,

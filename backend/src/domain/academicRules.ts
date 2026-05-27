@@ -7,6 +7,43 @@ export const MIN_DISTINCT_GROUPS = 3
 export const MIN_HOURS_PER_GROUP = 20
 
 /**
+ * Grupo validado para integralizacao: horas elegiveis acumuladas no grupo >= 20.
+ */
+export function isGroupValidated(eligibleHours: number): boolean {
+  return Number.isFinite(eligibleHours) && eligibleHours >= MIN_HOURS_PER_GROUP
+}
+
+/**
+ * Soma das horas elegiveis em todos os grupos atinge o minimo institucional (144).
+ */
+export function meetsTotalEligibleHoursRequirement(totalEligibleHours: number): boolean {
+  return Number.isFinite(totalEligibleHours) && totalEligibleHours >= MIN_TOTAL_HOURS
+}
+
+/**
+ * Quantidade de grupos distintos com pelo menos 20h elegiveis cada.
+ */
+export function meetsValidatedGroupsRequirement(validatedGroupsCount: number): boolean {
+  return (
+    Number.isFinite(validatedGroupsCount) && validatedGroupsCount >= MIN_DISTINCT_GROUPS
+  )
+}
+
+/**
+ * Aptidao normativa: (1) total elegivel >= 144h somando todos os grupos;
+ * (2) pelo menos 3 grupos validados (cada um com >= 20h elegiveis no grupo).
+ */
+export function isStudentNormativelyEligible(
+  totalEligibleHours: number,
+  validatedGroupsCount: number
+): boolean {
+  return (
+    meetsTotalEligibleHoursRequirement(totalEligibleHours) &&
+    meetsValidatedGroupsRequirement(validatedGroupsCount)
+  )
+}
+
+/**
  * Status de validação acadêmica (campo `CertificateValidation.status` no SQLite como TEXT).
  * O conector SQLite deste projeto não usa `enum` nativo do Prisma; estes valores são a fonte de verdade.
  */

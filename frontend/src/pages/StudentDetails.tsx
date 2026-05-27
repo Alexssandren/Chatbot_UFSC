@@ -4,7 +4,7 @@ import { api } from '../services/api';
 import type { AcademicSummary, StudentDetail, Submission } from '../types';
 import { SubmissionDetailContent } from '../components/SubmissionDetailContent';
 import { AcademicSummaryCard } from '../components/AcademicSummaryCard';
-import { ArrowLeft, Mail, User, Hash } from 'lucide-react';
+import { ArrowLeft, Mail, User, Hash, FileDown } from 'lucide-react';
 
 export function StudentDetails() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +13,8 @@ export function StudentDetails() {
   const [academicSummary, setAcademicSummary] = useState<AcademicSummary | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportDownloading, setReportDownloading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const refreshAcademicSummary = useCallback(async () => {
     if (!id) return;
@@ -56,6 +58,26 @@ export function StudentDetails() {
     }
     load();
   }, [id]);
+
+  const handleDownloadReport = async () => {
+    if (!id || !student) return;
+    setReportDownloading(true);
+    setReportError(null);
+    try {
+      const blob = await api.downloadStudentConsolidatedReport(id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorio-${student.matricula}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao baixar relatorio.';
+      setReportError(msg);
+    } finally {
+      setReportDownloading(false);
+    }
+  };
 
   const handleSubmissionUpdated = (updated: Submission) => {
     setStudent((prev) => {
@@ -139,6 +161,23 @@ export function StudentDetails() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{summaryError}</div>
       ) : null}
       {academicSummary ? <AcademicSummaryCard summary={academicSummary} /> : null}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={() => void handleDownloadReport()}
+          disabled={reportDownloading}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <FileDown className="h-4 w-4" />
+          {reportDownloading ? 'Gerando relatorio...' : 'Baixar relatorio consolidado'}
+        </button>
+      </div>
+      {reportError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {reportError}
+        </div>
+      ) : null}
 
       {student.submissions.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-600">

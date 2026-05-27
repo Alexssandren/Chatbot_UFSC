@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "repair-academic": "tsx scripts/repair-academic-integrity.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test": "tsx --test test/**/*.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -26,11 +27,13 @@
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "fastify": "^5.8.5",
-    "fastify-plugin": "^5.1.0"
+    "fastify-plugin": "^5.1.0",
+    "pdfkit": "^0.18.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^25.6.0",
+    "@types/pdfkit": "^0.17.6",
     "prisma": "^5.22.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"

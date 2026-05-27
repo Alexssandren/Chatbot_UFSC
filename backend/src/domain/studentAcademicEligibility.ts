@@ -1,4 +1,6 @@
 import {
+  isGroupValidated,
+  isStudentNormativelyEligible,
   MIN_DISTINCT_GROUPS,
   MIN_HOURS_PER_GROUP,
   MIN_TOTAL_HOURS,
@@ -48,9 +50,9 @@ export function resolveAcademicEligibilityStatus(
   totalEligibleHours: number,
   validGroupsCount: number
 ): AcademicEligibilityStatus {
-  const meetsTotal = totalEligibleHours >= MIN_TOTAL_HOURS
-  const meetsGroups = validGroupsCount >= MIN_DISTINCT_GROUPS
-  return meetsTotal && meetsGroups ? 'apto' : 'nao_apto'
+  return isStudentNormativelyEligible(totalEligibleHours, validGroupsCount)
+    ? 'apto'
+    : 'nao_apto'
 }
 
 export function computePendingGroups(
@@ -59,7 +61,7 @@ export function computePendingGroups(
   const pending: PendingGroupRow[] = []
   for (let i = 0; i < groups.length; i++) {
     const g = groups[i]
-    if (g.meetsMinimumHours) {
+    if (isGroupValidated(g.eligibleHours)) {
       continue
     }
     pending.push({
