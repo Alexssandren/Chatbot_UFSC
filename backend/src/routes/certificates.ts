@@ -1,8 +1,23 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { reviewCertificateAcademically, type AcademicReviewInput } from '../services/academicValidationService'
+import { getCertificateAcademicReviewHistory } from '../services/academicReviewHistoryReadService'
 import { HttpError } from '../services/submissionService'
 
 const certificatesRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/certificates/:id/academic-review/history', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      const result = await getCertificateAcademicReviewHistory(id)
+      return reply.send(result)
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.statusCode).send({ error: err.message })
+      }
+      request.log.error(err)
+      return reply.code(500).send({ error: 'Erro interno' })
+    }
+  })
+
   app.patch('/certificates/:id/academic-review', async (request, reply) => {
     try {
       const { id } = request.params as { id: string }

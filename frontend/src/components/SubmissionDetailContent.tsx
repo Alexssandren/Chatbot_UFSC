@@ -3,6 +3,7 @@ import type { Submission } from '../types';
 import { academicStatusToBadgeStatus, formatSubmissionHoursSummary } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { AcademicReviewForm } from './AcademicReviewForm';
+import { AcademicReviewHistoryPanel } from './AcademicReviewHistoryPanel';
 import { DocumentFileActions } from './DocumentFileActions';
 import { PdfViewerModal, type PdfPreviewKind } from './PdfViewerModal';
 import {
@@ -47,6 +48,7 @@ export function SubmissionDetailContent({
     title: string;
     kind: PdfPreviewKind;
   } | null>(null);
+  const [historyRefreshByCert, setHistoryRefreshByCert] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setLocalSubmission(submission);
@@ -369,9 +371,17 @@ export function SubmissionDetailContent({
                               setLocalSubmission(updated);
                               onSubmissionUpdated?.(updated);
                             }
+                            setHistoryRefreshByCert((prev) => ({
+                              ...prev,
+                              [cert.id]: (prev[cert.id] ?? 0) + 1,
+                            }));
                             await onAcademicReviewSaved?.();
                           }}
                           onFeedback={(msg) => setStatusFeedback(msg)}
+                        />
+                        <AcademicReviewHistoryPanel
+                          certificateId={cert.id}
+                          refreshKey={historyRefreshByCert[cert.id] ?? 0}
                         />
                       </div>
                     </li>

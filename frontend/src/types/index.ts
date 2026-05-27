@@ -114,6 +114,29 @@ export type AcademicReviewResult = {
   };
 };
 
+export type AcademicReviewHistorySource = 'academic_review_patch' | 'repair_script';
+
+export type AcademicReviewHistorySnapshot = {
+  status: string;
+  approvedHours: number | null;
+  reviewNotes: string | null;
+};
+
+export type AcademicReviewHistoryEntry = {
+  id: string;
+  changedAt: string;
+  source: AcademicReviewHistorySource;
+  changeReason: string | null;
+  before: AcademicReviewHistorySnapshot;
+  after: AcademicReviewHistorySnapshot;
+};
+
+export type AcademicReviewHistoryResponse = {
+  certificateId: string;
+  validationId: string;
+  entries: AcademicReviewHistoryEntry[];
+};
+
 export interface DashboardStats {
   total: number;
   pending: number;

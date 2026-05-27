@@ -42,7 +42,26 @@ O Prisma modela **grupos oficiais** (`ActivityGroup`, códigos GI–GV), **categ
 - **`requestedHours`:** deve ser finito e `> 0` na criação da submissão e antes de aceitar revisão; caso contrário `400` com mensagem explícita.
 - **Consolidação:** [`isAcademicallyApproved`](src/domain/academicRules.ts) só inclui registros `approved` que passam nas checagens acima (registros legados inconsistentes são ignorados com `console.warn`).
 
-**Reparo em dev:** após backups, `npm run repair-academic` normaliza combinações inválidas de `status`/`approvedHours` e `approved` não consolidáveis para `pending`/`null` quando seguro.
+**Reparo em dev:** após backups, `npm run repair-academic` normaliza combinações inválidas de `status`/`approvedHours` e `approved` não consolidáveis para `pending`/`null` quando seguro. O script é **writer oficial de domínio**: altera `CertificateValidation`, impacta consolidação e grava `AcademicReviewHistory` com `source=repair_script` (não é manutenção cosmética).
+
+### Histórico de revisão acadêmica (Fase 6)
+
+- **Tabela:** `AcademicReviewHistory` — log **append-only** de transições em `status`, `approvedHours` e `reviewNotes` por validação.
+- **Estado atual:** continua em `CertificateValidation` (fonte de verdade para consolidação).
+- **Persistência:** [`src/services/academicReviewPersistence.ts`](src/services/academicReviewPersistence.ts) — função única `applyAcademicReviewChange` (insert histórico + update validação na mesma transação).
+- **Domínio:** diff e builder em [`src/domain/academicReviewHistory.ts`](src/domain/academicReviewHistory.ts).
+- **Writers oficiais:** `PATCH /api/certificates/:id/academic-review` (`source=academic_review_patch`) e `npm run repair-academic` (`source=repair_script`).
+- **`changeReason`:** motivo opcional **desta transição** (texto livre no histórico). Distinto de `reviewNotes` (parecer no estado atual da validação).
+- **`changedBy`:** sempre `null` nesta fase (sem auth real).
+- **Sem mudança real:** PATCH idempotente não cria histórico e não atualiza `reviewedAt`.
+- **Leitura HTTP (Fase Final):** `GET /api/certificates/:id/academic-review/history` — projeção **read-only** via [`src/services/academicReviewHistoryReadService.ts`](src/services/academicReviewHistoryReadService.ts). Não altera estado nem consolidação; não expõe `changedBy`.
+
+#### Limitações da auditabilidade
+
+1. **Sem identidade real de usuário** — `changedBy` permanece `null`. Trilha temporal **não** é responsabilização; não tratar como auditoria corporativa completa.
+2. **Sem reconstrução temporal do resumo** — o histórico registra transições **por certificado**, não snapshots de `GET .../academic-summary`. Reconstruir elegibilidade passada exige recalcular manualmente a partir do estado em cada data.
+3. **Sem retenção garantida** — `onDelete: Cascade` em `AcademicReviewHistory` apaga o histórico junto com `CertificateValidation`/certificado (aceitável em dev/demo; provável mudança em produção).
+4. **Dois writers** — PATCH humano e repair automático alteram estado normativo; executar repair com consciência de impacto na consolidação.
 
 **Migrations:** a pasta `20260208103000_certificate_approval_status` foi renomeada para `20260508103000_certificate_approval_status` para rodar **depois** de `init`. Se o seu `dev.db` já tinha aplicado a migration antiga e `migrate deploy` acusar coluna duplicada, use `npx prisma migrate resolve --applied 20260508103000_certificate_approval_status` e rode `migrate deploy` de novo.
 
@@ -115,7 +134,8 @@ npm start
 | GET | `/api/students` | Lista de alunos (resumo) |
 | GET | `/api/students/:id` | Aluno com submissões e certificados |
 | GET | `/api/students/:id/academic-summary` | Consolidação acadêmica (Fase 3: approved/eligible, categorias, tetos) |
-| PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`). Resposta `200` com `certificateId` e `validation` atualizada. |
+| PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`, `changeReason` opcional). Grava histórico quando há mudança real. Resposta `200` inalterada. |
+| GET | `/api/certificates/:id/academic-review/history` | Histórico read-only de transições (`entries[]` com `before`/`after`, `source`, `changeReason`). `200` com `entries: []` se não houver transições. |
 
 **Totais por submissão:** `totalDeclaredHours` = soma de `Certificate.horas` (envio). `totalAcademicApprovedHours` = soma de `approvedHours` apenas onde [`isAcademicallyApproved`](src/domain/academicRules.ts) é verdadeiro (alinhado ao `GET .../academic-summary` por aluno).
 
@@ -139,10 +159,44 @@ Corpo JSON:
 - `status` (obrigatório): `pending` | `approved` | `rejected`
 - `approvedHours` (opcional): obrigatório semanticamente quando `status === approved` (número > 0); ignorado/normalizado para `pending`/`rejected` conforme [`isValidApprovedHoursForStatus`](src/domain/academicRules.ts)
 - `reviewNotes` (opcional): string ou omitido / `null`
+- `changeReason` (opcional): motivo desta transição, gravado só em `AcademicReviewHistory` (não altera o shape da resposta)
 
-Resposta `200`: objeto com `certificateId` e `validation` (status, horas, parecer, `reviewedAt`, `requestedHours`, `activityGroup`, `activityCategory`).
+Resposta `200`: objeto com `certificateId` e `validation` (status, horas, parecer, `reviewedAt`, `requestedHours`, `activityGroup`, `activityCategory`). Se não houver mudança real nos campos revisáveis, retorna `200` sem atualizar `reviewedAt` nem criar histórico.
 
 `400`: combinação inválida de status/horas; `approvedHours` acima de `requestedHours`; `requestedHours` inválido no certificado. `404`: certificado inexistente ou sem registro de validação acadêmica. `500`: inconsistência persistida entre grupo e categoria.
+
+### GET /api/certificates/:id/academic-review/history
+
+Leitura **read-only** das transições em `AcademicReviewHistory`. Não revalida regras normativas nem reconstrói `academic-summary`.
+
+Resposta `200`:
+
+```json
+{
+  "certificateId": "uuid",
+  "validationId": "uuid",
+  "entries": [
+    {
+      "id": "uuid",
+      "changedAt": "2026-05-27T12:00:00.000Z",
+      "source": "academic_review_patch",
+      "changeReason": null,
+      "before": { "status": "pending", "approvedHours": null, "reviewNotes": null },
+      "after": { "status": "approved", "approvedHours": 20, "reviewNotes": "OK" }
+    }
+  ]
+}
+```
+
+- `entries: []` quando não houve transições (inclui certificados legados pré-Fase 6).
+- Ordenação: `changedAt` asc, desempate `id` asc.
+- Limite interno: 500 entradas (sem parâmetros de paginação na API).
+- `source`: `academic_review_patch` (PATCH) ou `repair_script` (`npm run repair-academic`). **Não** identifica usuário.
+- `changedBy` **não** é exposto.
+
+`404`: certificado inexistente ou sem `CertificateValidation`. `500`: erro interno.
+
+**Limitações:** sem auth; sem snapshots temporais do resumo do aluno; histórico apagado em cascade com certificado/validação.
 
 ### Health
 

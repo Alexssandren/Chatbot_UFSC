@@ -11,6 +11,13 @@ import {
   ValidationStatus,
   type ValidationStatusValue,
 } from '../domain/academicRules'
+import {
+  hasAcademicReviewChanged,
+  normalizeChangeReason,
+  normalizeReviewNotes,
+  snapshotFromValidation,
+} from '../domain/academicReviewHistory'
+import { applyAcademicReviewChange } from './academicReviewPersistence'
 import { HttpError } from './submissionService'
 
 /**
@@ -221,6 +228,7 @@ export type AcademicReviewInput = {
   status: string
   approvedHours?: number | null
   reviewNotes?: string | null
+  changeReason?: string | null
 }
 
 function parseValidationStatus(raw: string): ValidationStatusValue {
@@ -250,14 +258,6 @@ function normalizeApprovedHoursForPersist(
   return n
 }
 
-function normalizeReviewNotes(raw: string | null | undefined): string | null {
-  if (raw == null) {
-    return null
-  }
-  const t = String(raw).trim()
-  return t.length === 0 ? null : t
-}
-
 function mapDomainErrorToHttp(err: unknown): HttpError {
   if (err instanceof HttpError) {
     return err
@@ -281,6 +281,7 @@ export async function reviewCertificateAcademically(
     throw new HttpError('combinacao status/horas invalida para revisao academica', 400)
   }
   const reviewNotes = normalizeReviewNotes(input.reviewNotes)
+  const changeReason = normalizeChangeReason(input.changeReason)
 
   const cert = await prisma.certificate.findUnique({
     where: { id: certificateId },
@@ -289,6 +290,9 @@ export async function reviewCertificateAcademically(
       validation: {
         select: {
           id: true,
+          status: true,
+          approvedHours: true,
+          reviewNotes: true,
           requestedHours: true,
           activityGroupId: true,
           activityCategory: { select: { id: true, name: true, groupId: true } },
@@ -299,7 +303,8 @@ export async function reviewCertificateAcademically(
   if (!cert) {
     throw new HttpError('Certificado nao encontrado', 404)
   }
-  if (!cert.validation) {
+  const validation = cert.validation
+  if (!validation) {
     throw new HttpError('Certificado sem registro de validacao academica (migration incompleta ou dado legado)', 404)
   }
 
@@ -307,23 +312,57 @@ export async function reviewCertificateAcademically(
     validateAcademicReviewAgainstStoredValidation({
       status,
       approvedHoursNorm,
-      requestedHours: cert.validation.requestedHours,
-      activityGroupId: cert.validation.activityGroupId,
-      activityCategory: cert.validation.activityCategory,
+      requestedHours: validation.requestedHours,
+      activityGroupId: validation.activityGroupId,
+      activityCategory: validation.activityCategory,
     })
   } catch (err) {
     throw mapDomainErrorToHttp(err)
   }
 
+  const before = snapshotFromValidation(validation)
+  const after = {
+    status,
+    approvedHours: approvedHoursNorm,
+    reviewNotes,
+  }
+
+  if (!hasAcademicReviewChanged(before, after)) {
+    const v = await prisma.certificateValidation.findUnique({
+      where: { certificateId },
+      include: {
+        activityGroup: { select: { code: true, name: true } },
+        activityCategory: { select: { name: true } },
+      },
+    })
+    if (!v) {
+      throw new HttpError('Validacao nao encontrada', 404)
+    }
+    return {
+      certificateId: cert.id,
+      validation: {
+        status: v.status,
+        approvedHours: v.approvedHours,
+        reviewNotes: v.reviewNotes ?? null,
+        reviewedAt: v.reviewedAt ? v.reviewedAt.toISOString() : null,
+        requestedHours: v.requestedHours,
+        activityGroup: { code: v.activityGroup.code, name: v.activityGroup.name },
+        activityCategory: { name: v.activityCategory.name },
+      },
+    }
+  }
+
   const now = new Date()
-  await prisma.certificateValidation.update({
-    where: { certificateId },
-    data: {
-      status,
-      approvedHours: approvedHoursNorm,
-      reviewNotes,
+  await prisma.$transaction(async (tx) => {
+    await applyAcademicReviewChange(tx, {
+      validationId: validation.id,
+      certificateId,
+      before,
+      after,
+      source: 'academic_review_patch',
+      changeReason,
       reviewedAt: now,
-    },
+    })
   })
 
   const v = await prisma.certificateValidation.findUnique({

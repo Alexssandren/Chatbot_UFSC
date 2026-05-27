@@ -97,4 +97,29 @@ model CertificateValidation {
   reviewedAt           DateTime?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  reviewHistory        AcademicReviewHistory[]
+}
+
+/// Log append-only de transicoes na revisao academica (Fase 6).
+model AcademicReviewHistory {
+  id                    String                @id @default(uuid())
+  validationId          String
+  validation            CertificateValidation @relation(fields: [validationId], references: [id], onDelete: Cascade)
+
+  previousStatus        String
+  newStatus             String
+  previousApprovedHours Float?
+  newApprovedHours      Float?
+  previousReviewNotes   String?
+  newReviewNotes        String?
+
+  /// academic_review_patch | repair_script
+  source                String                @default("academic_review_patch")
+  /// Motivo da transicao (livre, opcional). Distinto de reviewNotes no estado atual.
+  changeReason          String?
+  changedAt             DateTime              @default(now())
+  /// Reservado para auth futura; null nesta fase.
+  changedBy             String?
+
+  @@index([validationId, changedAt])
 }

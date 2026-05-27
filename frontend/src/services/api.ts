@@ -7,6 +7,7 @@ import type {
   Certificate,
   AcademicSummary,
   AcademicReviewResult,
+  AcademicReviewHistoryResponse,
   AcademicValidationStatus,
   CertificateAcademicValidation,
 } from '../types';
@@ -323,6 +324,32 @@ export const api = {
       );
     }
     return body as AcademicReviewResult;
+  },
+
+  getCertificateAcademicReviewHistory: async (
+    certificateId: string
+  ): Promise<AcademicReviewHistoryResponse> => {
+    const url = apiUrl(
+      `/api/certificates/${encodeURIComponent(certificateId)}/academic-review/history`
+    );
+    const res = await fetch(url);
+    const text = await res.text();
+    let body: AcademicReviewHistoryResponse | { error?: string };
+    try {
+      body = text
+        ? (JSON.parse(text) as AcademicReviewHistoryResponse | { error?: string })
+        : ({} as { error?: string });
+    } catch {
+      throw new Error(`Erro ao carregar historico de revisao: ${res.status}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        'error' in body && typeof body.error === 'string'
+          ? body.error
+          : `Erro ao carregar historico de revisao: ${res.status}`
+      );
+    }
+    return body as AcademicReviewHistoryResponse;
   },
 
   patchCertificateApproval: async (

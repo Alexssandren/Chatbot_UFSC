@@ -152,9 +152,8 @@ export function AcademicReviewForm({
           <input
             id={hoursInputId}
             type="number"
-            min={status === 'approved' ? 0.01 : undefined}
+            step="any"
             max={status === 'approved' && requestedCap != null ? requestedCap : undefined}
-            step="0.5"
             value={hoursDisplayValue}
             onChange={(ev) => {
               if (!hoursDisabled) {

@@ -91,6 +91,7 @@ Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anota�
 
 | Data | Notas |
 |------|--------|
+| 27/05/2026 | Fase 6: `AcademicReviewHistory` (append-only), `applyAcademicReviewChange`, histórico transacional no PATCH e no `repair-academic`; `changeReason` opcional; sem exposição HTTP do histórico nesta fase. |
 | 26/05/2026 | Fase 5: `PATCH /api/certificates/:id/academic-review` (retorno com `validation`); painel com resumo acadêmico em `StudentDetails`, formulário `AcademicReviewForm` por certificado, mapeamento de `validation` nas submissões; `studentDbId` no tipo `Submission` (UUID vs matrícula). |
 | 26/05/2026 | Fase 2 backend: consolidação acadêmica (`academicValidationService`), `GET /api/students/:id/academic-summary`, `isAcademicallyApproved`, `displayOrder` no catálogo GI–GV; seed com validações `approved` para smoke. |
 | 26/05/2026 | Fase 1 backend: `ActivityGroup`, `ActivityCategory` (`ruleNotes`), `CertificateValidation`; constantes UFSC; resolver textual temporário para `cert_N_grupo`; migration `add_academic_domain_models`; seed e docs atualizados. |
