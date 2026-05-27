@@ -6,6 +6,7 @@ import type {
   StudentDetail,
   Certificate,
   AcademicSummary,
+  AcademicCompletion,
   AcademicReviewResult,
   AcademicReviewHistoryResponse,
   AcademicValidationStatus,
@@ -359,6 +360,85 @@ export const api = {
       throw new Error(msg);
     }
     return res.blob();
+  },
+
+  getStudentAcademicCompletion: async (studentDbId: string): Promise<AcademicCompletion> => {
+    const res = await apiFetch(
+      `/api/students/${encodeURIComponent(studentDbId)}/academic-completion`
+    );
+    const text = await res.text();
+    let payload: AcademicCompletion | { error?: string };
+    try {
+      payload = text ? (JSON.parse(text) as AcademicCompletion | { error?: string }) : {};
+    } catch {
+      throw new Error(`Erro ao carregar conclusao academica: ${res.status}`);
+    }
+    if (!res.ok) {
+      const msg =
+        'error' in payload && typeof payload.error === 'string'
+          ? payload.error
+          : `Erro ao carregar conclusao academica: ${res.status}`;
+      throw new Error(msg);
+    }
+    return payload as AcademicCompletion;
+  },
+
+  concludeStudent: async (
+    studentDbId: string,
+    payload?: { notes?: string }
+  ): Promise<AcademicCompletion> => {
+    const res = await apiFetch(
+      `/api/students/${encodeURIComponent(studentDbId)}/academic-completion`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload ?? {}),
+      }
+    );
+    const text = await res.text();
+    let body: AcademicCompletion | { error?: string };
+    try {
+      body = text ? (JSON.parse(text) as AcademicCompletion | { error?: string }) : {};
+    } catch {
+      throw new Error(`Erro ao registrar conclusao: ${res.status}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        'error' in body && typeof body.error === 'string'
+          ? body.error
+          : `Erro ao registrar conclusao: ${res.status}`
+      );
+    }
+    return body as AcademicCompletion;
+  },
+
+  revokeStudentCompletion: async (
+    studentDbId: string,
+    payload?: { notes?: string }
+  ): Promise<AcademicCompletion> => {
+    const res = await apiFetch(
+      `/api/students/${encodeURIComponent(studentDbId)}/academic-completion/revoke`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload ?? {}),
+      }
+    );
+    const text = await res.text();
+    let body: AcademicCompletion | { error?: string };
+    try {
+      body = text ? (JSON.parse(text) as AcademicCompletion | { error?: string }) : {};
+    } catch {
+      throw new Error(`Erro ao revogar conclusao: ${res.status}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        'error' in body && typeof body.error === 'string'
+          ? body.error
+          : `Erro ao revogar conclusao: ${res.status}`
+      );
+    }
+    return body as AcademicCompletion;
   },
 
   getStudentAcademicSummary: async (studentDbId: string): Promise<AcademicSummary> => {

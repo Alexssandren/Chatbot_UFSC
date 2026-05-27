@@ -82,6 +82,18 @@ export type AcademicEligibility = {
   }[];
 };
 
+export type AcademicCompletion = {
+  concluded: boolean;
+  concludedAt: string | null;
+  concludedBy: { displayName: string } | null;
+  revokedAt: string | null;
+  snapshot: {
+    totalEligibleHours: number;
+    validGroupsCount: number;
+  } | null;
+  notes: string | null;
+};
+
 export type AcademicSummary = {
   studentId: string;
   /** @deprecated Use academicEligibility.status === 'apto' */

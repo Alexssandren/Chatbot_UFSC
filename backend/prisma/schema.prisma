@@ -8,23 +8,26 @@ datasource db {
 }
 
 model User {
-  id            String                  @id @default(uuid())
-  username      String                  @unique
-  passwordHash  String
-  displayName   String
-  role          String                  @default("advisor")
-  createdAt     DateTime                @default(now())
-  reviewHistory AcademicReviewHistory[]
+  id                         String                      @id @default(uuid())
+  username                   String                      @unique
+  passwordHash               String
+  displayName                String
+  role                       String                      @default("advisor")
+  createdAt                  DateTime                    @default(now())
+  reviewHistory              AcademicReviewHistory[]
+  academicCompletionsConcluded StudentAcademicCompletion[] @relation("CompletionConcludedBy")
+  academicCompletionsRevoked StudentAcademicCompletion[] @relation("CompletionRevokedBy")
 }
 
 model Student {
-  id             String       @id @default(uuid())
-  externalUserId String       @unique
-  matricula      String       @unique
-  nome           String
-  email          String
-  createdAt      DateTime     @default(now())
-  submissions    Submission[]
+  id                String                     @id @default(uuid())
+  externalUserId    String                     @unique
+  matricula         String                     @unique
+  nome              String
+  email             String
+  createdAt         DateTime                   @default(now())
+  submissions       Submission[]
+  academicCompletion StudentAcademicCompletion?
 }
 
 model Submission {
@@ -132,4 +135,22 @@ model AcademicReviewHistory {
   changedBy             User?                 @relation(fields: [changedById], references: [id], onDelete: SetNull)
 
   @@index([validationId, changedAt])
+}
+
+/// Decisao administrativa de conclusao das atividades complementares (Fase 10). Um registro por aluno.
+model StudentAcademicCompletion {
+  id                           String    @id @default(uuid())
+  studentId                    String    @unique
+  student                      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  concludedAt                  DateTime?
+  concludedById                String?
+  concludedBy                  User?     @relation("CompletionConcludedBy", fields: [concludedById], references: [id], onDelete: SetNull)
+  notes                        String?
+  snapshotTotalEligibleHours   Float?
+  snapshotValidGroupsCount     Int?
+  revokedAt                    DateTime?
+  revokedById                  String?
+  revokedBy                    User?     @relation("CompletionRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 }

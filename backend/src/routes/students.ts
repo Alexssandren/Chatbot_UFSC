@@ -1,4 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { requireAuthenticatedSession } from '../auth/session'
+import {
+  concludeStudent,
+  getStudentAcademicCompletion,
+  revokeStudentCompletion,
+} from '../services/academicCompletionService'
 import { generateConsolidatedReportPdf } from '../services/academicReportService'
 import { getStudentAcademicConsolidation } from '../services/academicValidationService'
 import { HttpError } from '../services/submissionService'
@@ -18,6 +24,54 @@ const studentsRoutes: FastifyPluginAsync = async (app) => {
         .type('application/pdf')
         .header('Content-Disposition', `attachment; filename="${filename}"`)
         .send(buffer)
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.statusCode).send({ error: err.message })
+      }
+      request.log.error(err)
+      return reply.code(500).send({ error: 'Erro interno' })
+    }
+  })
+
+  app.get('/students/:id/academic-completion', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      const completion = await getStudentAcademicCompletion(id)
+      return reply.send(completion)
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.statusCode).send({ error: err.message })
+      }
+      request.log.error(err)
+      return reply.code(500).send({ error: 'Erro interno' })
+    }
+  })
+
+  app.post('/students/:id/academic-completion', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      const userId = requireAuthenticatedSession(request)
+      const body = (request.body ?? {}) as { notes?: string | null }
+      const notes = typeof body.notes === 'string' ? body.notes : undefined
+      const completion = await concludeStudent(id, userId, notes)
+      return reply.code(201).send(completion)
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.statusCode).send({ error: err.message })
+      }
+      request.log.error(err)
+      return reply.code(500).send({ error: 'Erro interno' })
+    }
+  })
+
+  app.post('/students/:id/academic-completion/revoke', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      const userId = requireAuthenticatedSession(request)
+      const body = (request.body ?? {}) as { notes?: string | null }
+      const notes = typeof body.notes === 'string' ? body.notes : undefined
+      const completion = await revokeStudentCompletion(id, userId, notes)
+      return reply.send(completion)
     } catch (err) {
       if (err instanceof HttpError) {
         return reply.code(err.statusCode).send({ error: err.message })

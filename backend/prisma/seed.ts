@@ -115,21 +115,21 @@ const SUBMISSIONS: SubmissionSeed[] = [
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1202.pdf',
         originalFilename: 'monitoria.pdf',
         grupo: 'Ensino',
-        horas: 60,
+        horas: 72,
         activityGroupId: SEED_ACTIVITY_GROUPS[0].id,
         activityCategoryId: CATEGORY_IDS.GI_ENSINO,
         validationStatus: 'approved',
-        approvedHours: 60,
+        approvedHours: 72,
       },
       {
         storedName: 'ffffffff-ffff-4fff-bfff-ffffffff1203.pdf',
         originalFilename: 'projeto_interdisciplinar.pdf',
         grupo: 'Extensao',
-        horas: 30,
+        horas: 45,
         activityGroupId: SEED_ACTIVITY_GROUPS[4].id,
         activityCategoryId: CATEGORY_IDS.GV_DEMAIS,
         validationStatus: 'approved',
-        approvedHours: 30,
+        approvedHours: 42,
       },
     ],
   },
@@ -238,6 +238,7 @@ async function main(): Promise<void> {
 
   await seedDemoUser()
 
+  await prisma.studentAcademicCompletion.deleteMany()
   await prisma.certificateValidation.deleteMany()
   await prisma.certificate.deleteMany()
   await prisma.submission.deleteMany()

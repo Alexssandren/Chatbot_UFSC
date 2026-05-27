@@ -106,11 +106,27 @@ Pilha de projeções: `CertificateValidation` (canônico) → consolidação (`a
 
 **Proibição — frontend:** o cliente **nunca** deve recalcular elegibilidade normativa (limiares 144/3/20, `pendingGroups`, `hoursShortfall`, aptidão). Toda regra deve vir do backend (`academicEligibility`, `groups[]`, `requirements`).
 
+### Conclusão oficial (Fase 10)
+
+Decisão **administrativa** persistida, separada da elegibilidade normativa.
+
+- **Modelo:** `StudentAcademicCompletion` — relação **1:1** com `Student` (`studentId` @unique). Estado derivado: `concluded = concludedAt != null && revokedAt == null`.
+- **Serviço:** [`src/services/academicCompletionService.ts`](src/services/academicCompletionService.ts).
+- **Gate no POST conclude:** chama `getStudentAcademicConsolidation` e exige `academicEligibility.status === 'apto'`. Persiste snapshot mínimo (`snapshotTotalEligibleHours`, `snapshotValidGroupsCount`).
+- **Não altera** `getStudentAcademicConsolidation` nem deriva `apto` da existência de conclusão.
+- **Revogação:** manual via `POST .../revoke`; novo conclude após revoke **reutiliza** o mesmo registro (limpa `revokedAt`).
+
+| Método | Path | Descrição |
+|--------|------|-----------|
+| GET | `/api/students/:id/academic-completion` | Leitura do registro (ou vazio) |
+| POST | `/api/students/:id/academic-completion` | Registrar conclusão (`201`; `409` se já concluído; `422` se não apto) |
+| POST | `/api/students/:id/academic-completion/revoke` | Revogar (`404` sem conclusão ativa) |
+
 ### Dados de demonstração (`db:seed`)
 
 O script `npm run db:seed` recria usuário demo (`orientador`), alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `GET /api/files/...` (com login) sem enviar multipart.
 
-**Atenção:** o seed é **destrutivo**: apaga `CertificateValidation`, `Certificate`, `Submission`, `Student`, `ActivityCategory`, `ActivityGroup` e remove as pastas `requerimentos/` e `certificados/` dentro do `UPLOAD_DIR` (não altera `tmp/`). Em seguida recria grupos/categorias oficiais (GI–GV), dados de demo e PDFs mínimos. Use apenas em ambiente de desenvolvimento ou antes de uma demo controlada.
+**Atenção:** o seed é **destrutivo**: apaga `StudentAcademicCompletion`, `CertificateValidation`, `Certificate`, `Submission`, `Student`, `ActivityCategory`, `ActivityGroup` e remove as pastas `requerimentos/` e `certificados/` dentro do `UPLOAD_DIR` (não altera `tmp/`). Em seguida recria grupos/categorias oficiais (GI–GV), dados de demo e PDFs mínimos. Use apenas em ambiente de desenvolvimento ou antes de uma demo controlada.
 
 Ordem sugerida:
 
@@ -123,7 +139,7 @@ Requer o mesmo `.env` do servidor (`DATABASE_URL`, `UPLOAD_DIR`), pois o seed im
 
 IDs úteis para smoke manual (após o seed): submissão pendente com certificados `22222222-2222-4222-8222-000000000001`; submissão só com requerimento (lista vazia de certificados) `22222222-2222-4222-8222-000000000004`.
 
-**Consolidação (após seed):** Bruno (`11111111-1111-4111-8111-000000000002`): Congressos 60 h aprovadas (teto 30 h elegíveis), GI 60 h, GV 30 h — `totalApprovedHours` 150, `totalEligibleHours` 120, `validGroupsCount` 3, `eligible` false. Daniel (`11111111-1111-4111-8111-000000000004`): Seminários 25 h aprovadas (teto 15 h elegíveis), GI 45 h — GII com `meetsMinimumHours` false (15 &lt; 20). `GET /api/students/:id/academic-summary`.
+**Consolidação (após seed):** Bruno (`11111111-1111-4111-8111-000000000002`): Congressos 60 h aprovadas (teto 30 h elegíveis), GI 72 h, GV 42 h — `totalEligibleHours` 144, `validGroupsCount` 3, `academicEligibility.status` `apto` (candidato a `POST .../academic-completion`). Daniel (`11111111-1111-4111-8111-000000000004`): Seminários 25 h aprovadas (teto 15 h elegíveis), GI 45 h — GII com `meetsMinimumHours` false (15 &lt; 20). `GET /api/students/:id/academic-summary`.
 
 ## Executar
 
