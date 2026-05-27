@@ -17,6 +17,7 @@ API Node.js (Fastify + TypeScript + Prisma + SQLite) para receber submissões mu
    - `NODE_ENV` – em `production`, valores dos campos da submissão não são logados por padrão (somente chaves); use `DEBUG_SUBMISSIONS=1` para forçar log detalhado.
    - `SESSION_SECRET` – obrigatório (mínimo 16 caracteres); assina o cookie de sessão.
    - `CORS_ORIGIN` – origem do frontend com credenciais (padrão dev: `http://localhost:5173`).
+   - **E-mail (Fase 11):** `MAIL_ENABLED` (padrão desligado); com `true`, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`. Em `production` com mail ativo, credenciais ausentes impedem o boot.
 
 2. Instale dependências e aplique migrações:
 
@@ -122,6 +123,19 @@ Decisão **administrativa** persistida, separada da elegibilidade normativa.
 | POST | `/api/students/:id/academic-completion` | Registrar conclusão (`201`; `409` se já concluído; `422` se não apto) |
 | POST | `/api/students/:id/academic-completion/revoke` | Revogar (`404` sem conclusão ativa) |
 
+### E-mail institucional simples (Fase 11)
+
+Notificação **derivada** pós-transação — não é fonte de verdade; falha SMTP **não** impede a revisão acadêmica.
+
+- **Caso de uso:** transição para `status: rejected` via `PATCH .../academic-review` (somente quando `before.status !== rejected`).
+- **Módulo:** [`src/modules/email/academicRejectionEmail.ts`](src/modules/email/academicRejectionEmail.ts) — texto puro, `nodemailer`, transport lazy.
+- **Orquestração:** `notifyAcademicRejectionIfNeeded()` em [`academicValidationService.ts`](src/services/academicValidationService.ts), **após** commit de `applyAcademicReviewChange`.
+- **Regra institucional:** `reviewNotes` **obrigatório** quando `status === rejected` (`400` antes da transação) — ver [`academicValidationContract.ts`](src/domain/academicValidationContract.ts).
+- **Sem persistência** de log de e-mail, fila ou histórico de entrega.
+- **Semântica honesta:** SMTP confirma aceite pelo servidor remoto, não entrega ao aluno. Resposta PATCH inclui `notification` efêmera: `{ attempted, smtpAccepted, skipped?, error? }`.
+- **`MAIL_ENABLED`:** padrão `false`; testes (`npm test`) não enviam e-mail real.
+- **Excluído:** `repair_script`, aprovação acadêmica, rejeição operacional, conclusão oficial.
+
 ### Dados de demonstração (`db:seed`)
 
 O script `npm run db:seed` recria usuário demo (`orientador`), alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `GET /api/files/...` (com login) sem enviar multipart.
@@ -169,7 +183,7 @@ npm start
 | GET | `/api/students/:id` | Aluno com submissões e certificados |
 | GET | `/api/students/:id/academic-summary` | Consolidação acadêmica + `academicEligibility` (Fase 7) |
 | GET | `/api/students/:id/consolidated-report.pdf` | PDF consolidado sob demanda (Fase 9; sessão obrigatória; `Content-Disposition: attachment`) |
-| PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`, `changeReason` opcional). Grava histórico quando há mudança real. Resposta `200` inalterada. |
+| PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`, `changeReason` opcional). Grava histórico quando há mudança real. Resposta `200` com `validation`; em transição para `rejected`, inclui `notification` efêmera (Fase 11). |
 | GET | `/api/certificates/:id/academic-review/history` | Histórico read-only de transições (`entries[]` com `before`/`after`, `source`, `changeReason`). `200` com `entries: []` se não houver transições. |
 
 **Totais por submissão:** `totalDeclaredHours` = soma de `Certificate.horas` (envio). `totalAcademicApprovedHours` = soma de `approvedHours` apenas onde [`isAcademicallyApproved`](src/domain/academicRules.ts) é verdadeiro (alinhado ao `GET .../academic-summary` por aluno).
@@ -207,12 +221,12 @@ Corpo JSON:
 
 - `status` (obrigatório): `pending` | `approved` | `rejected`
 - `approvedHours` (opcional): obrigatório semanticamente quando `status === approved` (número > 0); ignorado/normalizado para `pending`/`rejected` conforme [`isValidApprovedHoursForStatus`](src/domain/academicRules.ts)
-- `reviewNotes` (opcional): string ou omitido / `null`
+- `reviewNotes` (opcional em geral; **obrigatório** quando `status === rejected`): string ou omitido / `null`
 - `changeReason` (opcional): motivo desta transição, gravado só em `AcademicReviewHistory` (não altera o shape da resposta)
 
-Resposta `200`: objeto com `certificateId` e `validation` (status, horas, parecer, `reviewedAt`, `requestedHours`, `activityGroup`, `activityCategory`). Se não houver mudança real nos campos revisáveis, retorna `200` sem atualizar `reviewedAt` nem criar histórico.
+Resposta `200`: objeto com `certificateId` e `validation` (status, horas, parecer, `reviewedAt`, `requestedHours`, `activityGroup`, `activityCategory`). Quando há transição para `rejected` com mudança real, inclui `notification` efêmera (`attempted`, `smtpAccepted`, `skipped?`, `error?`). Se não houver mudança real nos campos revisáveis, retorna `200` sem atualizar `reviewedAt` nem criar histórico.
 
-`400`: combinação inválida de status/horas; `approvedHours` acima de `requestedHours`; `requestedHours` inválido no certificado. `404`: certificado inexistente ou sem registro de validação acadêmica. `500`: inconsistência persistida entre grupo e categoria.
+`400`: combinação inválida de status/horas; `approvedHours` acima de `requestedHours`; `requestedHours` inválido no certificado; **rejeição sem parecer** (`reviewNotes` vazio). `404`: certificado inexistente ou sem registro de validação acadêmica. `500`: inconsistência persistida entre grupo e categoria.
 
 ### GET /api/certificates/:id/academic-review/history
 

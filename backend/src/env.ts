@@ -12,6 +12,13 @@ export type AppEnv = {
   corsOrigin: string
   /** Loga valores dos campos texto da submissão (PII); chaves sempre podem ser logadas no handler. */
   submissionLogFieldValues: boolean
+  mailEnabled: boolean
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUser: string
+  smtpPass: string
+  mailFrom: string
 }
 
 let cached: AppEnv | null = null
@@ -41,6 +48,32 @@ export function loadEnv(): AppEnv {
   const debugFlag =
     process.env.DEBUG_SUBMISSIONS === '1' || process.env.DEBUG_SUBMISSIONS === 'true'
   const submissionLogFieldValues = nodeEnv !== 'production' || debugFlag
+  const mailEnabled =
+    process.env.MAIL_ENABLED === '1' || process.env.MAIL_ENABLED === 'true'
+  const smtpHost = process.env.SMTP_HOST?.trim() ?? ''
+  const smtpPort = Number(process.env.SMTP_PORT ?? 587)
+  if (!Number.isFinite(smtpPort) || smtpPort <= 0) {
+    throw new Error('SMTP_PORT invalido.')
+  }
+  const smtpSecure =
+    process.env.SMTP_SECURE === '1' || process.env.SMTP_SECURE === 'true'
+  const smtpUser = process.env.SMTP_USER?.trim() ?? ''
+  const smtpPass = process.env.SMTP_PASS ?? ''
+  const mailFrom = process.env.MAIL_FROM?.trim() ?? ''
+  if (mailEnabled && nodeEnv === 'production') {
+    if (!smtpHost) {
+      throw new Error('SMTP_HOST ausente com MAIL_ENABLED=true em producao.')
+    }
+    if (!smtpUser) {
+      throw new Error('SMTP_USER ausente com MAIL_ENABLED=true em producao.')
+    }
+    if (!smtpPass) {
+      throw new Error('SMTP_PASS ausente com MAIL_ENABLED=true em producao.')
+    }
+    if (!mailFrom) {
+      throw new Error('MAIL_FROM ausente com MAIL_ENABLED=true em producao.')
+    }
+  }
   cached = {
     port,
     databaseUrl,
@@ -49,6 +82,13 @@ export function loadEnv(): AppEnv {
     sessionSecret,
     corsOrigin,
     submissionLogFieldValues,
+    mailEnabled,
+    smtpHost,
+    smtpPort,
+    smtpSecure,
+    smtpUser,
+    smtpPass,
+    mailFrom,
   }
   return cached
 }

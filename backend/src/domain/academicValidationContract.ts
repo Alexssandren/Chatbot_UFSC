@@ -24,6 +24,7 @@ export type StoredCategoryForReview = {
 export function validateAcademicReviewAgainstStoredValidation(input: {
   status: ValidationStatusValue
   approvedHoursNorm: number | null
+  reviewNotes: string | null
   requestedHours: number
   activityGroupId: string
   activityCategory: StoredCategoryForReview
@@ -35,5 +36,11 @@ export function validateAcademicReviewAgainstStoredValidation(input: {
   }
   if (input.status === ValidationStatus.approved && input.approvedHoursNorm !== null) {
     assertApprovedHoursWithinRequested(input.approvedHoursNorm, input.requestedHours)
+  }
+  if (input.status === ValidationStatus.rejected) {
+    const notes = input.reviewNotes?.trim() ?? ''
+    if (notes.length === 0) {
+      throw new Error('parecer obrigatorio ao rejeitar certificado academicamente')
+    }
   }
 }

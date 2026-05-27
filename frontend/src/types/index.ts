@@ -131,6 +131,13 @@ export type AcademicSummary = {
   }[];
 };
 
+export type AcademicReviewNotification = {
+  attempted: boolean
+  smtpAccepted: boolean;
+  skipped?: 'mail_disabled' | 'invalid_or_missing_email' | 'not_rejection_transition';
+  error?: string;
+};
+
 export type AcademicReviewResult = {
   certificateId: string;
   validation: {
@@ -142,6 +149,7 @@ export type AcademicReviewResult = {
     activityGroup: { code: string; name: string };
     activityCategory: { name: string };
   };
+  notification?: AcademicReviewNotification;
 };
 
 export type AcademicReviewHistorySource = 'academic_review_patch' | 'repair_script';

@@ -211,7 +211,7 @@ describe('academic-completion', () => {
       method: 'PATCH',
       url: `/api/certificates/${certId}/academic-review`,
       headers: { cookie, 'content-type': 'application/json' },
-      payload: { status: 'rejected', approvedHours: 0 },
+      payload: { status: 'rejected', approvedHours: 0, reviewNotes: 'Revertido para teste de conclusao' },
     })
     assert.equal(patchRes.statusCode, 200)
 

@@ -26,6 +26,11 @@ import {
 } from '../domain/studentAcademicEligibility'
 import { applyAcademicReviewChange } from './academicReviewPersistence'
 import { HttpError } from './submissionService'
+import { getEnv } from '../env'
+import {
+  sendAcademicRejectionEmail,
+  type AcademicRejectionEmailDto,
+} from '../modules/email/academicRejectionEmail'
 
 /**
  * Contrato GET /api/students/:id/academic-summary (Fase 3).
@@ -68,6 +73,14 @@ export type AcademicConsolidation = {
   academicEligibility: AcademicEligibility
 }
 
+/** Feedback efemero pos-PATCH quando ha transicao para rejeicao academica. */
+export type AcademicReviewNotification = {
+  attempted: boolean
+  smtpAccepted: boolean
+  skipped?: 'mail_disabled' | 'invalid_or_missing_email' | 'not_rejection_transition'
+  error?: string
+}
+
 /** Resposta PATCH /api/certificates/:id/academic-review */
 export type AcademicReviewResult = {
   certificateId: string
@@ -80,6 +93,7 @@ export type AcademicReviewResult = {
     activityGroup: { code: string; name: string }
     activityCategory: { name: string }
   }
+  notification?: AcademicReviewNotification
 }
 
 type CategoryAgg = {
@@ -287,6 +301,122 @@ function mapDomainErrorToHttp(err: unknown): HttpError {
   return new HttpError('Erro de validacao', 400)
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function isValidStudentEmail(email: string): boolean {
+  return EMAIL_PATTERN.test(email.trim())
+}
+
+function maskEmailForLog(email: string): string {
+  const trimmed = email.trim()
+  const at = trimmed.indexOf('@')
+  if (at <= 1) {
+    return '***'
+  }
+  return `${trimmed[0]}***${trimmed.slice(at)}`
+}
+
+function buildValidationPayload(v: {
+  status: string
+  approvedHours: number | null
+  reviewNotes: string | null
+  reviewedAt: Date | null
+  requestedHours: number
+  activityGroup: { code: string; name: string }
+  activityCategory: { name: string }
+}): AcademicReviewResult['validation'] {
+  return {
+    status: v.status,
+    approvedHours: v.approvedHours,
+    reviewNotes: v.reviewNotes ?? null,
+    reviewedAt: v.reviewedAt ? v.reviewedAt.toISOString() : null,
+    requestedHours: v.requestedHours,
+    activityGroup: { code: v.activityGroup.code, name: v.activityGroup.name },
+    activityCategory: { name: v.activityCategory.name },
+  }
+}
+
+async function notifyAcademicRejectionIfNeeded(params: {
+  certificateId: string
+  beforeStatus: string
+  afterStatus: string
+  reviewNotes: string | null
+  reviewedAt: Date
+  activityGroup: { code: string; name: string }
+  activityCategory: { name: string }
+}): Promise<AcademicReviewNotification> {
+  if (
+    params.afterStatus !== ValidationStatus.rejected ||
+    params.beforeStatus === ValidationStatus.rejected
+  ) {
+    return {
+      attempted: false,
+      smtpAccepted: false,
+      skipped: 'not_rejection_transition',
+    }
+  }
+
+  const env = getEnv()
+  if (!env.mailEnabled) {
+    return {
+      attempted: false,
+      smtpAccepted: false,
+      skipped: 'mail_disabled',
+    }
+  }
+
+  const cert = await prisma.certificate.findUnique({
+    where: { id: params.certificateId },
+    select: {
+      originalFilename: true,
+      submission: {
+        select: {
+          student: { select: { nome: true, email: true } },
+        },
+      },
+    },
+  })
+  if (!cert) {
+    return {
+      attempted: false,
+      smtpAccepted: false,
+      skipped: 'invalid_or_missing_email',
+    }
+  }
+
+  const studentEmail = cert.submission.student.email?.trim() ?? ''
+  if (!isValidStudentEmail(studentEmail)) {
+    return {
+      attempted: false,
+      smtpAccepted: false,
+      skipped: 'invalid_or_missing_email',
+    }
+  }
+
+  const dto: AcademicRejectionEmailDto = {
+    studentName: cert.submission.student.nome,
+    studentEmail,
+    certificateFilename: cert.originalFilename,
+    activityGroupLabel: `${params.activityGroup.code} — ${params.activityGroup.name}`,
+    activityCategoryName: params.activityCategory.name,
+    reviewNotes: params.reviewNotes ?? '',
+    reviewedAtIso: params.reviewedAt.toISOString(),
+  }
+
+  const result = await sendAcademicRejectionEmail(dto)
+  if (!result.smtpAccepted) {
+    console.error(
+      `[mail] falha certificateId=${params.certificateId} dest=${maskEmailForLog(studentEmail)} error=${result.error ?? 'unknown'}`
+    )
+  }
+
+  return {
+    attempted: true,
+    smtpAccepted: result.smtpAccepted,
+    error: result.error,
+  }
+}
+
 export async function reviewCertificateAcademically(
   certificateId: string,
   input: AcademicReviewInput,
@@ -329,6 +459,7 @@ export async function reviewCertificateAcademically(
     validateAcademicReviewAgainstStoredValidation({
       status,
       approvedHoursNorm,
+      reviewNotes,
       requestedHours: validation.requestedHours,
       activityGroupId: validation.activityGroupId,
       activityCategory: validation.activityCategory,
@@ -357,15 +488,7 @@ export async function reviewCertificateAcademically(
     }
     return {
       certificateId: cert.id,
-      validation: {
-        status: v.status,
-        approvedHours: v.approvedHours,
-        reviewNotes: v.reviewNotes ?? null,
-        reviewedAt: v.reviewedAt ? v.reviewedAt.toISOString() : null,
-        requestedHours: v.requestedHours,
-        activityGroup: { code: v.activityGroup.code, name: v.activityGroup.name },
-        activityCategory: { name: v.activityCategory.name },
-      },
+      validation: buildValidationPayload(v),
     }
   }
 
@@ -394,16 +517,19 @@ export async function reviewCertificateAcademically(
     throw new HttpError('Validacao nao encontrada', 404)
   }
 
+  const notification = await notifyAcademicRejectionIfNeeded({
+    certificateId: cert.id,
+    beforeStatus: before.status,
+    afterStatus: after.status,
+    reviewNotes: after.reviewNotes,
+    reviewedAt: now,
+    activityGroup: v.activityGroup,
+    activityCategory: v.activityCategory,
+  })
+
   return {
     certificateId: cert.id,
-    validation: {
-      status: v.status,
-      approvedHours: v.approvedHours,
-      reviewNotes: v.reviewNotes ?? null,
-      reviewedAt: v.reviewedAt ? v.reviewedAt.toISOString() : null,
-      requestedHours: v.requestedHours,
-      activityGroup: { code: v.activityGroup.code, name: v.activityGroup.name },
-      activityCategory: { name: v.activityCategory.name },
-    },
+    validation: buildValidationPayload(v),
+    notification,
   }
 }

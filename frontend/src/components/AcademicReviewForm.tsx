@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { AcademicValidationStatus, CertificateAcademicValidation } from '../types';
+import type {
+  AcademicReviewNotification,
+  AcademicValidationStatus,
+  CertificateAcademicValidation,
+} from '../types';
 import { api } from '../services/api';
 
 type Props = {
@@ -8,6 +12,37 @@ type Props = {
   onSaved?: () => void | Promise<void>;
   onFeedback?: (msg: { text: string; variant: 'success' | 'warning' }) => void;
 };
+
+function buildReviewSavedFeedback(notification?: AcademicReviewNotification): {
+  text: string;
+  variant: 'success' | 'warning';
+} {
+  if (!notification) {
+    return { text: 'Revisão acadêmica salva.', variant: 'success' };
+  }
+  if (notification.skipped === 'mail_disabled' || notification.skipped === 'not_rejection_transition') {
+    return { text: 'Revisão acadêmica salva.', variant: 'success' };
+  }
+  if (notification.skipped === 'invalid_or_missing_email') {
+    return {
+      text: 'Revisão acadêmica salva. Endereço de e-mail do aluno inválido — notificação não encaminhada.',
+      variant: 'warning',
+    };
+  }
+  if (notification.attempted && notification.smtpAccepted) {
+    return {
+      text: 'Revisão acadêmica salva. Notificação encaminhada ao servidor de e-mail.',
+      variant: 'success',
+    };
+  }
+  if (notification.attempted && !notification.smtpAccepted) {
+    return {
+      text: 'Revisão acadêmica salva. A notificação não pôde ser encaminhada ao servidor de e-mail.',
+      variant: 'warning',
+    };
+  }
+  return { text: 'Revisão acadêmica salva.', variant: 'success' };
+}
 
 export function AcademicReviewForm({
   certificateId,
@@ -70,6 +105,11 @@ export function AcademicReviewForm({
       }
     }
 
+    if (status === 'rejected' && reviewNotes.trim() === '') {
+      setSubmitError('Informe o parecer ao rejeitar.');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: {
@@ -88,9 +128,9 @@ export function AcademicReviewForm({
         payload.approvedHours = 0;
       }
 
-      await api.reviewCertificateAcademically(certificateId, payload);
+      const result = await api.reviewCertificateAcademically(certificateId, payload);
       await onSaved?.();
-      onFeedback?.({ text: 'Revisão acadêmica salva.', variant: 'success' });
+      onFeedback?.(buildReviewSavedFeedback(result.notification));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao salvar revisão acadêmica.';
       setSubmitError(msg);
@@ -169,6 +209,9 @@ export function AcademicReviewForm({
         <div>
           <label htmlFor={notesId} className="mb-1 block text-xs font-medium text-gray-600">
             Parecer
+            {status === 'rejected' ? (
+              <span className="font-normal text-gray-500"> (obrigatório ao rejeitar)</span>
+            ) : null}
           </label>
           <textarea
             id={notesId}
