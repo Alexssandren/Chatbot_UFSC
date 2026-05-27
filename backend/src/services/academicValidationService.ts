@@ -17,6 +17,10 @@ import {
   normalizeReviewNotes,
   snapshotFromValidation,
 } from '../domain/academicReviewHistory'
+import {
+  deriveAcademicEligibility,
+  type AcademicEligibility,
+} from '../domain/studentAcademicEligibility'
 import { applyAcademicReviewChange } from './academicReviewPersistence'
 import { HttpError } from './submissionService'
 
@@ -57,6 +61,8 @@ export type AcademicConsolidation = {
     maxEligibleHours: number | null
     cappedHours: number
   }[]
+  /** Contrato normativo oficial (Fase 7). */
+  academicEligibility: AcademicEligibility
 }
 
 /** Resposta PATCH /api/certificates/:id/academic-review */
@@ -202,8 +208,14 @@ export async function getStudentAcademicConsolidation(
 
   const meetsTotalHoursRequirement = totalEligibleHours >= MIN_TOTAL_HOURS
   const meetsDistinctGroupsRequirement = validGroupsCount >= MIN_DISTINCT_GROUPS
-  const eligible = meetsTotalHoursRequirement && meetsDistinctGroupsRequirement
-  const remainingEligibleHours = Math.max(0, MIN_TOTAL_HOURS - totalEligibleHours)
+
+  const academicEligibility = deriveAcademicEligibility({
+    totalEligibleHours,
+    validGroupsCount,
+    groups,
+  })
+  const eligible = academicEligibility.status === 'apto'
+  const remainingEligibleHours = academicEligibility.remainingHours
 
   return {
     studentId,
@@ -221,6 +233,7 @@ export async function getStudentAcademicConsolidation(
     },
     groups,
     categories,
+    academicEligibility,
   }
 }
 

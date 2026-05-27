@@ -67,11 +67,28 @@ export function formatSubmissionHoursSummary(sub: Pick<Submission, 'totalHours' 
   return `${sub.totalHours}h hom. (${sub.totalDeclaredHours}h envio)`;
 }
 
+export type AcademicEligibilityStatus = 'apto' | 'nao_apto';
+
+export type AcademicEligibility = {
+  status: AcademicEligibilityStatus;
+  remainingHours: number;
+  remainingDistinctGroups: number;
+  pendingGroups: {
+    groupId: string;
+    code: string;
+    name: string;
+    eligibleHours: number;
+    hoursShortfall: number;
+  }[];
+};
+
 export type AcademicSummary = {
   studentId: string;
+  /** @deprecated Use academicEligibility.status === 'apto' */
   eligible: boolean;
   totalApprovedHours: number;
   totalEligibleHours: number;
+  /** @deprecated Use academicEligibility.remainingHours */
   remainingEligibleHours: number;
   validGroupsCount: number;
   requirements: {
@@ -81,6 +98,7 @@ export type AcademicSummary = {
     meetsTotalHoursRequirement: boolean;
     meetsDistinctGroupsRequirement: boolean;
   };
+  academicEligibility: AcademicEligibility;
   groups: {
     groupId: string;
     code: string;

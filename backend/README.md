@@ -88,6 +88,22 @@ O Prisma modela **grupos oficiais** (`ActivityGroup`, códigos GI–GV), **categ
 
 **Limitações:** não há `capReason` / `ruleApplied`; `ruleNotes` não é interpretado; `Certificate.approvalStatus` (operacional) não altera este cálculo.
 
+### Elegibilidade acadêmica normativa (UFSC) — Fase 7
+
+Pilha de projeções: `CertificateValidation` (canônico) → consolidação (`academic-summary`) → **`academicEligibility`** (elegibilidade normativa derivada, **não persistida**).
+
+- **Domínio:** [`src/domain/studentAcademicEligibility.ts`](src/domain/studentAcademicEligibility.ts) — `deriveAcademicEligibility`, `pendingGroups`, `remainingHours`, `status` (`apto` | `nao_apto`). Constantes `MIN_*` importadas apenas de [`academicRules.ts`](src/domain/academicRules.ts).
+- **Serviço:** após montar `groups[]` e totais, `getStudentAcademicConsolidation` chama `deriveAcademicEligibility` uma vez; `eligible` e `remainingEligibleHours` são **espelhos** do bloco oficial (nunca recalculados em paralelo).
+- **Sem endpoint separado, sem migration, sem writer novo.**
+
+**Contrato oficial (UI e integrações novas):** `academicEligibility` no JSON de `GET /api/students/:id/academic-summary`.
+
+**Deprecated conceitualmente (compatibilidade aditiva):** `eligible`, `remainingEligibleHours`. Roadmap futuro: remoção após migração de consumidores.
+
+**Limitação arquitetural:** `academicEligibility` é derivado **da consolidação normativa atual** (formato de `groups[]`, `eligibleHours`, `validGroupsCount`), não de um modelo de elegibilidade independente. Alterações em `groups[]` ou na semântica de `eligibleHours` exigem revisão conjunta de `studentAcademicEligibility.ts`.
+
+**Proibição — frontend:** o cliente **nunca** deve recalcular elegibilidade normativa (limiares 144/3/20, `pendingGroups`, `hoursShortfall`, aptidão). Toda regra deve vir do backend (`academicEligibility`, `groups[]`, `requirements`).
+
 ### Dados de demonstração (`db:seed`)
 
 O script `npm run db:seed` recria um conjunto fixo de alunos, submissões (pendente / aprovada / rejeitada), certificados e **arquivos PDF mínimos** sob `UPLOAD_DIR`, para testar lista, detalhes e `/uploads/...` sem enviar multipart.
@@ -133,7 +149,7 @@ npm start
 | PATCH | `/api/submissions/:id/status` | JSON `{"status":"pending"\|"approved"\|"rejected"}` |
 | GET | `/api/students` | Lista de alunos (resumo) |
 | GET | `/api/students/:id` | Aluno com submissões e certificados |
-| GET | `/api/students/:id/academic-summary` | Consolidação acadêmica (Fase 3: approved/eligible, categorias, tetos) |
+| GET | `/api/students/:id/academic-summary` | Consolidação acadêmica + `academicEligibility` (Fase 7) |
 | PATCH | `/api/certificates/:id/academic-review` | Revisão acadêmica (`CertificateValidation`: `status`, `approvedHours`, `reviewNotes`, `changeReason` opcional). Grava histórico quando há mudança real. Resposta `200` inalterada. |
 | GET | `/api/certificates/:id/academic-review/history` | Histórico read-only de transições (`entries[]` com `before`/`after`, `source`, `changeReason`). `200` com `entries: []` se não houver transições. |
 
@@ -143,12 +159,16 @@ npm start
 
 Resposta `200`: tipo `AcademicConsolidation` em [`src/services/academicValidationService.ts`](src/services/academicValidationService.ts).
 
-- `studentId`, `eligible`, `totalApprovedHours`, **`totalEligibleHours`**, **`remainingEligibleHours`**, `validGroupsCount`
+- `studentId`, `totalApprovedHours`, **`totalEligibleHours`**, `validGroupsCount`
+- **`academicEligibility`** (oficial): `status` (`apto` | `nao_apto`), `remainingHours`, `remainingDistinctGroups`, `pendingGroups[]` (`code`, `name`, `eligibleHours`, `hoursShortfall`)
+- `eligible`, **`remainingEligibleHours`** — espelhos de compatibilidade (**deprecated conceitualmente**; use `academicEligibility`)
 - `requirements`: mínimos e flags (`meetsTotalHoursRequirement` usa **`totalEligibleHours`**)
 - `groups`: sempre todos os `ActivityGroup` do banco; cada item com `approvedHours`, **`eligibleHours`**, `meetsMinimumHours` (por **eligible**)
 - **`categories[]`:** detalhe normativo por categoria (`approvedHours`, `eligibleHours`, `maxEligibleHours`, `cappedHours`)
 
-**Breaking change:** na Fase 3, **`remainingHours` foi removido**; use **`remainingEligibleHours`**.
+**Invariantes:** `eligible === (academicEligibility.status === 'apto')`; `remainingEligibleHours === academicEligibility.remainingHours`.
+
+**Breaking change (Fase 3):** o campo top-level `remainingHours` foi removido; use `academicEligibility.remainingHours` ou `remainingEligibleHours` (deprecated).
 
 `404`: aluno inexistente.
 

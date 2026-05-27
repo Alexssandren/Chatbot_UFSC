@@ -50,7 +50,8 @@ Documentação adicional por pacote:
   - `/login` — Login demo
 - **Fase 5 (acadêmico no painel):** em `/students/:id`, card **Resumo acadêmico** (`GET .../academic-summary`); em cada certificado, **revisão acadêmica** separada do fluxo **operacional** (`approvalStatus` ≠ `CertificateValidation.status`). Após salvar revisão, a UI **reidrata** submissão e resumo sem refresh manual. O tipo `Submission.studentDbId` guarda o UUID Prisma do aluno; `Submission.studentId` continua sendo a **matrícula** (dívida de nomenclatura documentada em código).
 - **Painel do orientador (operacional):** aprovação/rejeição de submissão (quando aplicável) e **aprovação por arquivo** com feedback visual ([`frontend/src/components/SubmissionDetailContent.tsx`](frontend/src/components/SubmissionDetailContent.tsx)).
-- **Consolidação no servidor:** o frontend **não** recalcula elegibilidade, tetos ou grupos; apenas exibe o JSON da API e aplica validação mínima de formulário (ex.: horas obrigatórias quando status acadêmico é aprovado).
+- **Fase 7 (elegibilidade acadêmica):** o card de resumo usa `academicEligibility` do `GET .../academic-summary` (apto/não apto, horas faltantes, grupos pendentes). Banner e pendências **não** usam `eligible` nem recálculo local (`Math.max` para shortfall).
+- **Consolidação no servidor:** o frontend **não** recalcula elegibilidade normativa (limiares 144/3/20, `pendingGroups`, aptidão); apenas exibe o JSON da API e validação mínima de formulário (horas quando status acadêmico é aprovado).
 - **PDFs:** visualização em **modal** com `iframe`, download, loading e falha por **timeout (15s)**; distinção visual **Requerimento** vs **Certificado** ([`frontend/src/components/PdfViewerModal.tsx`](frontend/src/components/PdfViewerModal.tsx), [`DocumentFileActions.tsx`](frontend/src/components/DocumentFileActions.tsx)).
 - **API no dev:** proxy Vite de `/api` e `/uploads` para o backend ([`frontend/vite.config.ts`](frontend/vite.config.ts)). Opcional: `VITE_API_URL` em [`frontend/.env.example`](frontend/.env.example).
 
@@ -91,7 +92,8 @@ Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anota�
 
 | Data | Notas |
 |------|--------|
-| 27/05/2026 | Fase 6: `AcademicReviewHistory` (append-only), `applyAcademicReviewChange`, histórico transacional no PATCH e no `repair-academic`; `changeReason` opcional; sem exposição HTTP do histórico nesta fase. |
+| 27/05/2026 | Fase 7: `academicEligibility` em `GET .../academic-summary` (`studentAcademicEligibility.ts`); UI apto/não apto e grupos pendentes; `eligible`/`remainingEligibleHours` deprecated conceitualmente. |
+| 27/05/2026 | Fase 6: `AcademicReviewHistory` (append-only), `applyAcademicReviewChange`, histórico transacional no PATCH e no `repair-academic`; `changeReason` opcional; `GET .../academic-review/history`. |
 | 26/05/2026 | Fase 5: `PATCH /api/certificates/:id/academic-review` (retorno com `validation`); painel com resumo acadêmico em `StudentDetails`, formulário `AcademicReviewForm` por certificado, mapeamento de `validation` nas submissões; `studentDbId` no tipo `Submission` (UUID vs matrícula). |
 | 26/05/2026 | Fase 2 backend: consolidação acadêmica (`academicValidationService`), `GET /api/students/:id/academic-summary`, `isAcademicallyApproved`, `displayOrder` no catálogo GI–GV; seed com validações `approved` para smoke. |
 | 26/05/2026 | Fase 1 backend: `ActivityGroup`, `ActivityCategory` (`ruleNotes`), `CertificateValidation`; constantes UFSC; resolver textual temporário para `cert_N_grupo`; migration `add_academic_domain_models`; seed e docs atualizados. |
