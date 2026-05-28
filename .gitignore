@@ -1,0 +1,42 @@
+# --- Segredos e ambiente local ---
+.env
+.env.*
+!.env.example
+
+# --- Dependencias e build ---
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- IDE / editor ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- SO ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Cursor / agentes locais ---
+.cursor/
+
+# --- Testes e cobertura ---
+coverage/
+.nyc_output/
