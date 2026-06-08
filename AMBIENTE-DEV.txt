@@ -1,0 +1,1 @@
+Copia dev a partir de /opt/validacert. Producao porta 8082; dev porta 8083, DB e volumes separados.

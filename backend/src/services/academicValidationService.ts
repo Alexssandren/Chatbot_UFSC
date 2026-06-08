@@ -1,4 +1,5 @@
 import { prisma } from '../db'
+import { getEnv } from '../env'
 import { compareActivityGroupsByDisplayOrder } from '../domain/academicCatalog'
 import { validateAcademicReviewAgainstStoredValidation } from '../domain/academicValidationContract'
 import {
@@ -25,8 +26,7 @@ import {
   type AcademicEligibility,
 } from '../domain/studentAcademicEligibility'
 import { applyAcademicReviewChange } from './academicReviewPersistence'
-import { HttpError } from './submissionService'
-import { getEnv } from '../env'
+import { HttpError, syncSubmissionStatusFromCertificates } from './submissionService'
 import {
   sendAcademicRejectionEmail,
   type AcademicRejectionEmailDto,
@@ -434,6 +434,7 @@ export async function reviewCertificateAcademically(
     where: { id: certificateId },
     select: {
       id: true,
+      submissionId: true,
       validation: {
         select: {
           id: true,
@@ -505,6 +506,8 @@ export async function reviewCertificateAcademically(
       reviewedAt: now,
     })
   })
+
+  await syncSubmissionStatusFromCertificates(cert.submissionId)
 
   const v = await prisma.certificateValidation.findUnique({
     where: { certificateId },

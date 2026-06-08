@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileCheck, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileCheck, Users, LogOut, UserCircle } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,6 +10,7 @@ export function Sidebar() {
   const navItems: { to: string; icon: typeof LayoutDashboard; label: string; end?: boolean }[] = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
     { to: '/students', icon: Users, label: 'Alunos' },
+    { to: '/profile', icon: UserCircle, label: 'Meu perfil' },
   ];
 
   async function handleLogout() {
@@ -51,15 +52,19 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-gray-200 space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0">
+        <button
+          type="button"
+          onClick={() => navigate('/profile')}
+          className="flex w-full items-center gap-3 rounded-md px-1 py-1 text-left hover:bg-gray-50"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
             {initial}
           </div>
-          <div className="text-sm min-w-0">
-            <p className="font-medium text-gray-900 truncate">{label}</p>
-            <p className="text-gray-500 text-xs">Orientador</p>
+          <div className="min-w-0 text-sm">
+            <p className="truncate font-medium text-gray-900">{label}</p>
+            <p className="text-xs text-gray-500">Orientador — ver perfil</p>
           </div>
-        </div>
+        </button>
         <button
           type="button"
           onClick={handleLogout}

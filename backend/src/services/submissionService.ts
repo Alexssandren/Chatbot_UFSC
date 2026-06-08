@@ -346,16 +346,22 @@ export async function getSubmissionById(id: string) {
   }
 }
 
-async function syncSubmissionStatusFromCertificates(submissionId: string): Promise<void> {
+export async function syncSubmissionStatusFromCertificates(submissionId: string): Promise<void> {
   const submission = await prisma.submission.findUnique({
     where: { id: submissionId },
-    include: { certificates: true },
+    include: {
+      certificates: {
+        include: {
+          validation: true,
+        },
+      },
+    },
   })
   if (!submission || submission.certificates.length === 0) {
     return
   }
 
-  const statuses = submission.certificates.map((c) => c.approvalStatus)
+  const statuses = submission.certificates.map((c) => c.validation?.status ?? 'pending')
   if (statuses.some((s) => s === 'pending')) {
     await prisma.submission.update({ where: { id: submissionId }, data: { status: 'pending' } })
     return
@@ -417,10 +423,24 @@ export async function updateSubmissionStatus(id: string, status: string) {
     if (status === 'approved' || status === 'rejected' || status === 'pending') {
       const certStatus =
         status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending'
-      await prisma.certificate.updateMany({
+      
+      const certificates = await prisma.certificate.findMany({
         where: { submissionId: id },
-        data: { approvalStatus: certStatus },
+        include: { validation: true },
       })
+
+      for (const cert of certificates) {
+        if (cert.validation) {
+          const approvedHours = certStatus === 'approved' ? cert.horas : (certStatus === 'rejected' ? 0 : null)
+          await prisma.certificateValidation.update({
+            where: { id: cert.validation.id },
+            data: {
+              status: certStatus,
+              approvedHours,
+            },
+          })
+        }
+      }
     }
   }
 

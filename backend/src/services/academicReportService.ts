@@ -1,4 +1,5 @@
 import { prisma } from '../db'
+import { getEnv } from '../env'
 import { buildConsolidatedReportViewModel } from '../domain/consolidatedReportViewModel'
 import { renderConsolidatedReportPdf } from '../pdf/renderConsolidatedReportPdf'
 import { getStudentAcademicConsolidation } from './academicValidationService'
@@ -34,11 +35,17 @@ export async function generateConsolidatedReportPdf(
   })
 
   const issuedAt = new Date()
+  const env = getEnv()
   const viewModel = buildConsolidatedReportViewModel(
     { nome: student.nome, matricula: student.matricula },
     issuedAt,
     consolidation,
-    validations
+    validations,
+    {
+      requerimentoTitle: env.reportRequerimentoTitle,
+      coordinatorName: env.reportCoordinatorName,
+      coordinatorRole: env.reportCoordinatorRole,
+    }
   )
 
   const buffer = await renderConsolidatedReportPdf(viewModel)

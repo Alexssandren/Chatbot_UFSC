@@ -197,6 +197,32 @@ export interface StudentListItem {
   submissionCount: number;
 }
 
+export type StudentOverviewSnapshot = {
+  totalEligibleHours: number;
+  validGroupsCount: number;
+  academicEligibilityStatus: AcademicEligibilityStatus;
+};
+
+export type StudentListItemWithOverview = StudentListItem & {
+  overview: StudentOverviewSnapshot;
+};
+
+export type AcademicCatalogCategory = {
+  id: string;
+  name: string;
+  description: string | null;
+  ruleNotes: string | null;
+  maxEligibleHours: number | null;
+};
+
+export type AcademicCatalogGroup = {
+  id: string;
+  code: string;
+  name: string;
+  minHours: number;
+  categories: AcademicCatalogCategory[];
+};
+
 export interface StudentDetail extends StudentListItem {
   submissions: Submission[];
 }

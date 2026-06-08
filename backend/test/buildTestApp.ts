@@ -18,7 +18,7 @@ export async function loginSessionCookie(app: FastifyInstance): Promise<string> 
   const res = await app.inject({
     method: 'POST',
     url: '/api/auth/login',
-    payload: { username: 'orientador', password: 'orientador123' },
+    payload: { username: 'Vilson', password: '1234' },
   })
   if (res.statusCode !== 200) {
     throw new Error(`login falhou: ${res.statusCode} ${res.body}`)

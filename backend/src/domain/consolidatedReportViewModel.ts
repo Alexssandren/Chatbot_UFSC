@@ -17,11 +17,26 @@ export type ApprovedActivityRow = {
   approvedHours: number
 }
 
+export type ReportRequerimentoHeader = {
+  title: string
+  studentName: string
+  matricula: string
+  issueDate: string
+}
+
+export type ReportSignatureBlock = {
+  coordinatorName: string
+  coordinatorRole: string
+  signedAt: string
+}
+
 export type ConsolidatedReportViewModel = {
   student: ConsolidatedReportStudent
   issuedAt: Date
   consolidation: AcademicConsolidation
   approvedActivities: ApprovedActivityRow[]
+  requerimentoHeader: ReportRequerimentoHeader
+  signature: ReportSignatureBlock
 }
 
 export type ValidationForReportRow = {
@@ -34,11 +49,25 @@ export type ValidationForReportRow = {
   certificate: { originalFilename: string }
 }
 
+function formatDateBr(d: Date): string {
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+export type ReportMetaInput = {
+  requerimentoTitle: string
+  coordinatorName: string
+  coordinatorRole: string
+}
+
 export function buildConsolidatedReportViewModel(
   student: ConsolidatedReportStudent,
   issuedAt: Date,
   consolidation: AcademicConsolidation,
-  validations: ValidationForReportRow[]
+  validations: ValidationForReportRow[],
+  reportMeta: ReportMetaInput
 ): ConsolidatedReportViewModel {
   const rows: {
     groupId: string
@@ -80,10 +109,23 @@ export function buildConsolidatedReportViewModel(
     approvedHours: r.approvedHours,
   }))
 
+  const issueDate = formatDateBr(issuedAt)
+
   return {
     student,
     issuedAt,
     consolidation,
     approvedActivities,
+    requerimentoHeader: {
+      title: reportMeta.requerimentoTitle,
+      studentName: student.nome,
+      matricula: student.matricula,
+      issueDate,
+    },
+    signature: {
+      coordinatorName: reportMeta.coordinatorName,
+      coordinatorRole: reportMeta.coordinatorRole,
+      signedAt: issueDate,
+    },
   }
 }

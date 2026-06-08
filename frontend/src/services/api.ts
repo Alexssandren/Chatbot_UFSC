@@ -3,6 +3,7 @@ import type {
   DashboardStats,
   SubmissionStatus,
   StudentListItem,
+  StudentListItemWithOverview,
   StudentDetail,
   Certificate,
   AcademicSummary,
@@ -11,6 +12,7 @@ import type {
   AcademicReviewHistoryResponse,
   AcademicValidationStatus,
   CertificateAcademicValidation,
+  AcademicCatalogGroup,
 } from '../types';
 
 function apiBase(): string {
@@ -309,6 +311,43 @@ export const api = {
       email: r.email,
       submissionCount: r._count.submissions,
     }));
+  },
+
+  getStudentsOverview: async (): Promise<StudentListItemWithOverview[]> => {
+    const res = await apiFetch('/api/students?overview=1');
+    if (!res.ok) {
+      throw new Error(`Erro ao listar alunos com resumo: ${res.status}`);
+    }
+    const rows = await parseJson<
+      {
+        id: string;
+        matricula: string;
+        nome: string;
+        email: string;
+        submissionCount: number;
+        overview: {
+          totalEligibleHours: number;
+          validGroupsCount: number;
+          academicEligibilityStatus: 'apto' | 'nao_apto';
+        };
+      }[]
+    >(res);
+    return rows.map((r) => ({
+      id: r.id,
+      matricula: r.matricula,
+      nome: r.nome,
+      email: r.email,
+      submissionCount: r.submissionCount,
+      overview: r.overview,
+    }));
+  },
+
+  getAcademicCatalog: async (): Promise<AcademicCatalogGroup[]> => {
+    const res = await apiFetch('/api/academic-catalog');
+    if (!res.ok) {
+      throw new Error(`Erro ao carregar catalogo academico: ${res.status}`);
+    }
+    return parseJson<AcademicCatalogGroup[]>(res);
   },
 
   getStudentDetail: async (studentId: string): Promise<StudentDetail | undefined> => {

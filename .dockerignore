@@ -1,0 +1,11 @@
+.git
+.cursor
+.vscode
+**/node_modules
+**/dist
+**/.env
+**/*.db
+**/*.db-journal
+backend/uploads
+frontend/dist
+npm-debug.log*

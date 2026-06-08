@@ -210,9 +210,9 @@ async function writeDemoFiles(uploadDir: string): Promise<void> {
 }
 
 const DEMO_ADVISOR = {
-  username: 'orientador',
-  password: 'orientador123',
-  displayName: 'Orientador Demo',
+  username: 'Vilson',
+  password: '1234',
+  displayName: 'Vilson Gruber',
 } as const
 
 async function seedDemoUser(): Promise<void> {

@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import type { AcademicCompletion, AcademicSummary, StudentDetail, Submission } from '../types';
+import type {
+  AcademicCatalogGroup,
+  AcademicCompletion,
+  AcademicSummary,
+  Certificate,
+  StudentDetail,
+  Submission,
+} from '../types';
 import { SubmissionDetailContent } from '../components/SubmissionDetailContent';
 import { AcademicSummaryCard } from '../components/AcademicSummaryCard';
+import { StudentGroupSections, COURSE_NAME } from '../components/StudentGroupSections';
+import { PdfViewerModal } from '../components/PdfViewerModal';
 import { ArrowLeft, Mail, User, Hash, FileDown } from 'lucide-react';
 
 export function StudentDetails() {
@@ -20,7 +29,11 @@ export function StudentDetails() {
   const [completionNotes, setCompletionNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [reportDownloading, setReportDownloading] = useState(false);
+  const [reportPreviewing, setReportPreviewing] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [reportPreviewUrl, setReportPreviewUrl] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<AcademicCatalogGroup[]>([]);
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
 
   const refreshAcademicSummary = useCallback(async () => {
     if (!id) return;
@@ -54,11 +67,13 @@ export function StudentDetails() {
     async function load() {
       if (!id) return;
       try {
-        const [detailResult, summaryResult, completionResult] = await Promise.allSettled([
-          api.getStudentDetail(id),
-          api.getStudentAcademicSummary(id),
-          api.getStudentAcademicCompletion(id),
-        ]);
+        const [detailResult, summaryResult, completionResult, catalogResult] =
+          await Promise.allSettled([
+            api.getStudentDetail(id),
+            api.getStudentAcademicSummary(id),
+            api.getStudentAcademicCompletion(id),
+            api.getAcademicCatalog(),
+          ]);
 
         if (detailResult.status === 'fulfilled' && detailResult.value) {
           setStudent(detailResult.value);
@@ -72,6 +87,10 @@ export function StudentDetails() {
           const msg = reason instanceof Error ? reason.message : 'Erro ao carregar resumo acadêmico.';
           setSummaryError(msg);
           setAcademicSummary(null);
+        }
+
+        if (catalogResult.status === 'fulfilled') {
+          setCatalog(catalogResult.value);
         }
 
         if (completionResult.status === 'fulfilled') {
@@ -110,6 +129,26 @@ export function StudentDetails() {
       setReportError(msg);
     } finally {
       setReportDownloading(false);
+    }
+  };
+
+  const handlePreviewReport = async () => {
+    if (!id || !student) return;
+    setReportPreviewing(true);
+    setReportError(null);
+    try {
+      const blob = await api.downloadStudentConsolidatedReport(id);
+      if (reportPreviewUrl) {
+        URL.revokeObjectURL(reportPreviewUrl);
+      }
+      const url = URL.createObjectURL(blob);
+      setReportPreviewUrl(url);
+      setPdfPreview({ url, title: `Relatorio consolidado — ${student.nome}` });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao gerar relatorio.';
+      setReportError(msg);
+    } finally {
+      setReportPreviewing(false);
     }
   };
 
@@ -154,6 +193,10 @@ export function StudentDetails() {
   const isConcluded = academicCompletion?.concluded === true;
   const showEligibilityMismatch = isConcluded && !isApto;
 
+  const allCertificates: Certificate[] = student
+    ? student.submissions.flatMap((s) => s.certificates)
+    : [];
+
   const handleSubmissionUpdated = (updated: Submission) => {
     setStudent((prev) => {
       if (!prev) return prev;
@@ -190,6 +233,21 @@ export function StudentDetails() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
+      {pdfPreview ? (
+        <PdfViewerModal
+          url={pdfPreview.url}
+          title={pdfPreview.title}
+          kind={pdfPreview.title.startsWith('Relatorio') ? 'certificado' : 'certificado'}
+          onClose={() => {
+            setPdfPreview(null);
+            if (reportPreviewUrl) {
+              URL.revokeObjectURL(reportPreviewUrl);
+              setReportPreviewUrl(null);
+            }
+          }}
+        />
+      ) : null}
+
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -229,6 +287,10 @@ export function StudentDetails() {
               <p className="font-medium text-gray-900">{student.email}</p>
             </div>
           </div>
+          <div className="sm:col-span-2">
+            <p className="text-sm text-gray-500">Curso</p>
+            <p className="font-medium text-gray-900">{COURSE_NAME}</p>
+          </div>
         </div>
       </div>
 
@@ -236,6 +298,15 @@ export function StudentDetails() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{summaryError}</div>
       ) : null}
       {academicSummary ? <AcademicSummaryCard summary={academicSummary} /> : null}
+
+      {academicSummary ? (
+        <StudentGroupSections
+          summary={academicSummary}
+          catalog={catalog}
+          certificates={allCertificates}
+          onViewCertificate={(url, title) => setPdfPreview({ url, title })}
+        />
+      ) : null}
 
       {completionError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -375,8 +446,16 @@ export function StudentDetails() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
           type="button"
+          onClick={() => void handlePreviewReport()}
+          disabled={reportPreviewing || reportDownloading}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {reportPreviewing ? 'Gerando preview...' : 'Pre-visualizar relatorio'}
+        </button>
+        <button
+          type="button"
           onClick={() => void handleDownloadReport()}
-          disabled={reportDownloading}
+          disabled={reportDownloading || reportPreviewing}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FileDown className="h-4 w-4" />
@@ -389,9 +468,11 @@ export function StudentDetails() {
         </div>
       ) : null}
 
+      <h3 className="text-lg font-semibold text-gray-900">Submissoes (revisao operacional)</h3>
+
       {student.submissions.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-600">
-          Este aluno ainda não possui submissões registradas.
+          Este aluno ainda nao possui submissoes registradas.
         </div>
       ) : (
         <div className="space-y-10">

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { getAuthenticatedUserId, sendUnauthorized } from '../../auth/session'
+import academicCatalogRoutes from '../academicCatalog'
 import certificatesRoutes from '../certificates'
 import filesRoutes from '../files'
 import studentsRoutes from '../students'
@@ -13,6 +14,7 @@ const protectedRoutes: FastifyPluginAsync = async (app) => {
   })
 
   await app.register(studentsRoutes)
+  await app.register(academicCatalogRoutes)
   await app.register(certificatesRoutes)
   await app.register(submissionsProtectedRoutes)
   await app.register(filesRoutes)

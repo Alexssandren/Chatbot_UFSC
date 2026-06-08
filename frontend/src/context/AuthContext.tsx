@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, type PublicUser } from '../services/api';
+import { api, setUnauthorizedHandler, type PublicUser } from '../services/api';
 
 export type Session = PublicUser;
 
@@ -24,6 +24,15 @@ const AuthContext = createContext<AuthContextData | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+    });
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

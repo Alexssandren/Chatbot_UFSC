@@ -16,9 +16,22 @@ echo [iniciar] Configurando e iniciando o Backend...
 echo ===================================================
 cd /d "%~dp0backend"
 
-if not exist ".env" (
+if not exist ".env.example" (
+  echo [iniciar] ERRO: backend\.env.example nao encontrado.
+  echo [iniciar] Restaure o arquivo ou copie as variaveis do README do backend.
+  pause
+  exit /b 1
+)
+
+findstr /B /C:"DATABASE_URL=" ".env" >nul 2>&1
+if errorlevel 1 (
   echo [iniciar] Criando .env a partir de .env.example...
   copy /Y ".env.example" ".env" >nul
+  if errorlevel 1 (
+    echo [iniciar] Falha ao copiar .env.example para .env
+    pause
+    exit /b 1
+  )
 )
 
 echo [iniciar] npm install...
@@ -39,6 +52,14 @@ if errorlevel 1 (
     pause
     exit /b 1
   )
+)
+
+echo [iniciar] Verificando dados iniciais (seed se banco vazio)...
+call npx tsx prisma/seed-if-empty.ts
+if errorlevel 1 (
+  echo [iniciar] Falha ao preparar dados iniciais.
+  pause
+  exit /b 1
 )
 
 echo [iniciar] npm run dev (Backend)...

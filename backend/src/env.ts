@@ -9,6 +9,7 @@ export type AppEnv = {
   uploadDir: string
   nodeEnv: string
   sessionSecret: string
+  sessionCookieSecure: boolean
   corsOrigin: string
   /** Loga valores dos campos texto da submissão (PII); chaves sempre podem ser logadas no handler. */
   submissionLogFieldValues: boolean
@@ -19,6 +20,9 @@ export type AppEnv = {
   smtpUser: string
   smtpPass: string
   mailFrom: string
+  reportCoordinatorName: string
+  reportCoordinatorRole: string
+  reportRequerimentoTitle: string
 }
 
 let cached: AppEnv | null = null
@@ -43,6 +47,13 @@ export function loadEnv(): AppEnv {
       'SESSION_SECRET ausente ou curto demais (minimo 16 caracteres). Copie .env.example para .env.'
     )
   }
+  const sessionCookieSecureRaw = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase()
+  const sessionCookieSecure =
+    sessionCookieSecureRaw === 'true' || sessionCookieSecureRaw === '1'
+      ? true
+      : sessionCookieSecureRaw === 'false' || sessionCookieSecureRaw === '0'
+        ? false
+        : nodeEnv === 'production'
   const corsOrigin =
     process.env.CORS_ORIGIN?.trim() || 'http://localhost:5173'
   const debugFlag =
@@ -74,12 +85,21 @@ export function loadEnv(): AppEnv {
       throw new Error('MAIL_FROM ausente com MAIL_ENABLED=true em producao.')
     }
   }
+  const reportCoordinatorName =
+    process.env.REPORT_COORDINATOR_NAME?.trim() || 'Coordenacao do curso TIC'
+  const reportCoordinatorRole =
+    process.env.REPORT_COORDINATOR_ROLE?.trim() || 'Coordenador(a) do curso'
+  const reportRequerimentoTitle =
+    process.env.REPORT_REQUERIMENTO_TITLE?.trim() ||
+    'Requerimento de validacao de atividades complementares'
+
   cached = {
     port,
     databaseUrl,
     uploadDir,
     nodeEnv,
     sessionSecret,
+    sessionCookieSecure,
     corsOrigin,
     submissionLogFieldValues,
     mailEnabled,
@@ -89,6 +109,9 @@ export function loadEnv(): AppEnv {
     smtpUser,
     smtpPass,
     mailFrom,
+    reportCoordinatorName,
+    reportCoordinatorRole,
+    reportRequerimentoTitle,
   }
   return cached
 }

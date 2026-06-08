@@ -62,7 +62,12 @@ describe('buildConsolidatedReportViewModel', () => {
           activityCategory: { groupId: 'g2', name: 'Eventos' },
           certificate: { originalFilename: 'cert-c.pdf' },
         },
-      ]
+      ],
+      {
+        requerimentoTitle: 'Requerimento teste',
+        coordinatorName: 'Coordenador Teste',
+        coordinatorRole: 'Coordenador(a)',
+      }
     )
 
     assert.equal(vm.approvedActivities.length, 1)

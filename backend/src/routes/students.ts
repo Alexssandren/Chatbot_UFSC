@@ -8,10 +8,19 @@ import {
 import { generateConsolidatedReportPdf } from '../services/academicReportService'
 import { getStudentAcademicConsolidation } from '../services/academicValidationService'
 import { HttpError } from '../services/submissionService'
-import { getStudentWithSubmissions, listStudents } from '../services/studentService'
+import {
+  getStudentWithSubmissions,
+  listStudents,
+  listStudentsWithOverview,
+} from '../services/studentService'
 
 const studentsRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/students', async (_request, reply) => {
+  app.get('/students', async (request, reply) => {
+    const query = request.query as { overview?: string }
+    if (query.overview === '1' || query.overview === 'true') {
+      const rows = await listStudentsWithOverview()
+      return reply.send(rows)
+    }
     const rows = await listStudents()
     return reply.send(rows)
   })

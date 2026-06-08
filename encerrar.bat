@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 set "PORT=%~1"
-if "%PORT%"=="" set "PORT=3000"
+if "%PORT%"=="" set "PORT=3001"
 
 echo [encerrar] Finalizando processos escutando na porta %PORT% (LISTENING)...
 

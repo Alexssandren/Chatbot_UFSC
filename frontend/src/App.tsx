@@ -6,6 +6,7 @@ import { Login } from './pages/Login';
 import { SubmissionDetails } from './pages/SubmissionDetails';
 import { Students } from './pages/Students';
 import { StudentDetails } from './pages/StudentDetails';
+import { Profile } from './pages/Profile';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="students" element={<Students />} />
           <Route path="students/:id" element={<StudentDetails />} />
+          <Route path="profile" element={<Profile />} />
           <Route path="submission/:id" element={<SubmissionDetails />} />
         </Route>
       </Route>

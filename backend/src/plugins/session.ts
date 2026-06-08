@@ -4,7 +4,7 @@ import session from '@fastify/session'
 import { getEnv } from '../env'
 
 export default fp(async (app) => {
-  const { sessionSecret, nodeEnv } = getEnv()
+  const { sessionSecret, sessionCookieSecure } = getEnv()
 
   await app.register(cookie)
   await app.register(session, {
@@ -12,7 +12,7 @@ export default fp(async (app) => {
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: nodeEnv === 'production',
+      secure: sessionCookieSecure,
       path: '/',
     },
     saveUninitialized: false,

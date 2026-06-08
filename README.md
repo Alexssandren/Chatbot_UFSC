@@ -2,7 +2,7 @@
 
 Sistema para **recebimento**, **armazenamento** e **análise operacional** de submissões de atividades complementares (requerimento + certificados em PDF), com painel web para o orientador.
 
-**Última atualização deste documento:** 27/05/2026
+**Última atualização deste documento:** 04/06/2026
 
 ---
 
@@ -44,10 +44,11 @@ Documentação adicional por pacote:
 - **Rotas protegidas:** exceto `/login`, o app exige sessão ([`frontend/src/components/ProtectedRoute.tsx`](frontend/src/components/ProtectedRoute.tsx)).
 - **Autenticação:** sessão real via cookie (`credentials: 'include'`); login em [`frontend/src/context/AuthContext.tsx`](frontend/src/context/AuthContext.tsx) contra a API.
 - **Páginas principais:**
-  - `/` — Dashboard de submissões
-  - `/submission/:id` — Detalhe de uma submissão
+  - `/` — Dashboard híbrido (submissões, alunos com resumo, regras GI–GV)
+  - `/submission/:id` — Detalhe de uma submissão (certificados agrupados por grupo/categoria)
   - `/students` — Lista de alunos
-  - `/students/:id` — Aluno com várias submissões e **resumo acadêmico** (consolidação normativa)
+  - `/students/:id` — Perfil do aluno (5 grupos, resumo acadêmico, conclusão oficial, relatório PDF)
+  - `/profile` — Perfil do orientador (sessão)
   - `/login` — Login do orientador
 - **Fase 5 (acadêmico no painel):** em `/students/:id`, card **Resumo acadêmico** (`GET .../academic-summary`); em cada certificado, **revisão acadêmica** separada do fluxo **operacional** (`approvalStatus` ≠ `CertificateValidation.status`). Após salvar revisão, a UI **reidrata** submissão e resumo sem refresh manual. O tipo `Submission.studentDbId` guarda o UUID Prisma do aluno; `Submission.studentId` continua sendo a **matrícula** (dívida de nomenclatura documentada em código).
 - **Painel do orientador (operacional):** aprovação/rejeição de submissão (quando aplicável) e **aprovação por arquivo** com feedback visual ([`frontend/src/components/SubmissionDetailContent.tsx`](frontend/src/components/SubmissionDetailContent.tsx)).
@@ -73,7 +74,9 @@ Documentação adicional por pacote:
 2. **Frontend:** em `frontend/`, `npm install`, `npm run dev` (com backend na porta esperada pelo proxy, normalmente **3000**).
 3. Ou usar [`iniciar.bat`](iniciar.bat) na raiz (Windows).
 
-Credenciais demo (após `npm run db:seed` no backend): usuário `orientador`, senha `orientador123`.
+Credenciais demo (após `npm run db:seed` no backend): usuário **Vilson**, senha **1234**.
+
+Deploy na VPS: ver [`docs/DEPLOY-CHECKLIST.md`](docs/DEPLOY-CHECKLIST.md). Integração chatbot: [`docs/INTEGRACAO-CHATBOT.md`](docs/INTEGRACAO-CHATBOT.md).
 
 **Sessão in-memory:** reiniciar o backend desloga todos; múltiplas instâncias não compartilham sessão — ver [`backend/README.md`](backend/README.md).
 
@@ -99,6 +102,7 @@ Itens explicitamente **fora** do escopo atual (evitar sem decisão): OCR, anota�
 
 | Data | Notas |
 |------|--------|
+| 04/06/2026 | Plano por fases: dashboard híbrido, catálogo de regras, agrupamento de certificados, perfil 5 grupos, PDF com cabeçalho/assinatura, página `/profile`, docs de deploy e integração. |
 | 27/05/2026 | Fase 11: e-mail SMTP simples na rejeição acadêmica (`modules/email/academicRejectionEmail.ts`, `nodemailer`); `reviewNotes` obrigatório ao rejeitar; `notification` efêmera no PATCH; testes `academicRejectionEmail.test.ts`. |
 | 27/05/2026 | Fase 10: `StudentAcademicCompletion` (1:1 aluno); `POST/GET .../academic-completion`, `POST .../revoke`; UI bloco Conclusão oficial em `StudentDetails`; testes `academicCompletion.test.ts`. |
 | 27/05/2026 | Fase 9: `GET /api/students/:id/consolidated-report.pdf` (PDFKit, sob demanda); botão de download no detalhe do aluno; testes `npm test` no backend. |

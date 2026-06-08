@@ -33,7 +33,19 @@ export function renderConsolidatedReportPdf(vm: ConsolidatedReportViewModel): Pr
     doc.fontSize(11).text(REPORT_COURSE_NAME, left, y)
     y = doc.y + 10
     doc.fontSize(13).text(REPORT_TITLE, left, y)
-    y = doc.y + 20
+    y = doc.y + 16
+
+    doc.fontSize(11).font('Helvetica-Bold').text('Cabecalho do requerimento', left, y)
+    y = doc.y + 8
+    doc.font('Helvetica').fontSize(10)
+    doc.text(vm.requerimentoHeader.title, left, y, { width: 500 })
+    y = doc.y + 6
+    doc.text(`Aluno: ${vm.requerimentoHeader.studentName}`, left, y)
+    y = doc.y + 4
+    doc.text(`Matricula: ${vm.requerimentoHeader.matricula}`, left, y)
+    y = doc.y + 4
+    doc.text(`Data do requerimento: ${vm.requerimentoHeader.issueDate}`, left, y)
+    y = doc.y + 18
 
     doc.fontSize(11).font('Helvetica-Bold').text('Dados do aluno', left, y)
     y = doc.y + 8
@@ -117,6 +129,27 @@ export function renderConsolidatedReportPdf(vm: ConsolidatedReportViewModel): Pr
         }
       }
     }
+
+    y = doc.y + 28
+    if (y > 640) {
+      doc.addPage()
+      y = 50
+    }
+    doc.fontSize(11).font('Helvetica-Bold').text('Assinatura do coordenador', left, y)
+    y = doc.y + 12
+    doc.font('Helvetica').fontSize(10)
+    doc.text(vm.signature.coordinatorName, left, y)
+    y = doc.y + 4
+    doc.text(vm.signature.coordinatorRole, left, y)
+    y = doc.y + 4
+    doc.text(`Data: ${vm.signature.signedAt}`, left, y)
+    y = doc.y + 24
+    doc
+      .moveTo(left, y)
+      .lineTo(left + 220, y)
+      .stroke()
+    y = doc.y + 8
+    doc.fontSize(9).text('Assinatura', left, y)
 
     y = doc.y + 24
     if (y > 720) {

@@ -1,19 +1,6 @@
-# Dependencias e compilacao
 node_modules/
-dist/
-
-# Banco SQLite local
+uploads/
 *.db
 *.db-journal
-
-# Uploads gerados em dev/demo (PDFs de seed e submissoes)
-uploads/
-tmp/
-
-# Segredos (reforco local; raiz tambem ignora .env)
 .env
-.env.*
-!.env.example
-
-# Testes
-coverage/
+dist/

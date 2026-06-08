@@ -5,9 +5,10 @@ type Props = {
   downloadName: string;
   disabled?: boolean;
   onView: () => void;
+  children?: React.ReactNode;
 };
 
-export function DocumentFileActions({ url, downloadName, disabled = false, onView }: Props) {
+export function DocumentFileActions({ url, downloadName, disabled = false, onView, children }: Props) {
   const isDisabled = disabled || !url || url === '#';
 
   return (
@@ -38,6 +39,7 @@ export function DocumentFileActions({ url, downloadName, disabled = false, onVie
         <Download className="h-4 w-4" aria-hidden />
         Baixar PDF
       </a>
+      {children}
     </div>
   );
 }
