@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Submission } from '../types';
+import type { Submission, AcademicCatalogGroup } from '../types';
 import { formatSubmissionHoursSummary } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { GroupedCertificatesList } from './GroupedCertificatesList';
@@ -38,6 +38,7 @@ export function SubmissionDetailContent({
   } | null>(null);
   const [historyRefreshByCert, setHistoryRefreshByCert] = useState<Record<string, number>>({});
   const [openReviewForms, setOpenReviewForms] = useState<Record<string, boolean>>({});
+  const [catalog, setCatalog] = useState<AcademicCatalogGroup[]>([]);
 
   const toggleReviewForm = (certId: string) => {
     setOpenReviewForms((prev) => ({
@@ -49,6 +50,25 @@ export function SubmissionDetailContent({
   useEffect(() => {
     setLocalSubmission(submission);
   }, [submission]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getAcademicCatalog()
+      .then((data) => {
+        if (!cancelled) {
+          setCatalog(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalog([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!statusFeedback) return;
@@ -231,6 +251,7 @@ export function SubmissionDetailContent({
             <GroupedCertificatesList
               submissionId={localSubmission.id}
               certificates={localSubmission.certificates}
+              catalog={catalog}
               openReviewForms={openReviewForms}
               historyRefreshByCert={historyRefreshByCert}
               onToggleReviewForm={toggleReviewForm}

@@ -21,7 +21,9 @@ export type CertificateAcademicValidation = {
   approvedHours: number | null;
   reviewNotes: string | null;
   categoryName: string;
+  categoryId: string;
   groupCode: string;
+  groupId: string;
 };
 
 export interface Certificate {
@@ -131,8 +133,21 @@ export type AcademicSummary = {
   }[];
 };
 
+export type AcademicReassignResult = {
+  certificateId: string;
+  grupo: string;
+  validation: {
+    status: string;
+    requestedHours: number;
+    approvedHours: number | null;
+    reviewNotes: string | null;
+    activityGroup: { id: string; code: string; name: string };
+    activityCategory: { id: string; name: string };
+  };
+};
+
 export type AcademicReviewNotification = {
-  attempted: boolean
+  attempted: boolean;
   smtpAccepted: boolean;
   skipped?: 'mail_disabled' | 'invalid_or_missing_email' | 'not_rejection_transition';
   error?: string;

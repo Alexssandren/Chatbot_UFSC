@@ -1,8 +1,9 @@
-import type { Certificate, Submission } from '../types';
+import type { Certificate, Submission, AcademicCatalogGroup } from '../types';
 import { academicStatusToBadgeStatus } from '../types';
 import { groupCertificatesForDisplay } from '../utils/groupCertificates';
 import { StatusBadge } from './StatusBadge';
 import { AcademicReviewForm } from './AcademicReviewForm';
+import { CertificateReassignForm } from './CertificateReassignForm';
 import { AcademicReviewHistoryPanel } from './AcademicReviewHistoryPanel';
 import { DocumentFileActions } from './DocumentFileActions';
 import type { PdfPreviewKind } from './PdfViewerModal';
@@ -12,6 +13,7 @@ import { api } from '../services/api';
 type Props = {
   submissionId: string;
   certificates: Certificate[];
+  catalog: AcademicCatalogGroup[];
   openReviewForms: Record<string, boolean>;
   historyRefreshByCert: Record<string, number>;
   onToggleReviewForm: (certId: string) => void;
@@ -33,9 +35,11 @@ function CertificateRow({
   onAcademicReviewSaved,
   onCertReviewSaved,
   onFeedback,
+  catalog,
 }: {
   cert: Certificate;
   submissionId: string;
+  catalog: AcademicCatalogGroup[];
   isReviewOpen: boolean;
   historyRefreshKey: number;
   onToggleReview: () => void;
@@ -115,6 +119,19 @@ function CertificateRow({
         </div>
         {isReviewOpen ? (
           <>
+            <CertificateReassignForm
+              certificateId={cert.id}
+              initialValidation={cert.academicValidation}
+              catalog={catalog}
+              onSaved={async () => {
+                const updated = await api.getSubmissionById(submissionId);
+                if (updated) {
+                  onSubmissionUpdated?.(updated);
+                }
+                await onAcademicReviewSaved?.();
+              }}
+              onFeedback={onFeedback}
+            />
             <AcademicReviewForm
               certificateId={cert.id}
               initialValidation={cert.academicValidation}
@@ -139,6 +156,7 @@ function CertificateRow({
 export function GroupedCertificatesList({
   submissionId,
   certificates,
+  catalog,
   openReviewForms,
   historyRefreshByCert,
   onToggleReviewForm,
@@ -179,6 +197,7 @@ export function GroupedCertificatesList({
                       key={cert.id}
                       cert={cert}
                       submissionId={submissionId}
+                      catalog={catalog}
                       isReviewOpen={Boolean(openReviewForms[cert.id])}
                       historyRefreshKey={historyRefreshByCert[cert.id] ?? 0}
                       onToggleReview={() => onToggleReviewForm(cert.id)}

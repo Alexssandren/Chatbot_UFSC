@@ -10,6 +10,7 @@ import type {
   AcademicCompletion,
   AcademicReviewResult,
   AcademicReviewHistoryResponse,
+  AcademicReassignResult,
   AcademicValidationStatus,
   CertificateAcademicValidation,
   AcademicCatalogGroup,
@@ -92,8 +93,8 @@ interface ApiValidation {
   approvedHours: number | null;
   reviewNotes: string | null;
   requestedHours: number;
-  activityGroup: { code: string; name: string };
-  activityCategory: { name: string };
+  activityGroup: { id: string; code: string; name: string };
+  activityCategory: { id: string; name: string };
 }
 
 interface ApiCertificate {
@@ -179,7 +180,9 @@ function mapAcademicValidation(v: ApiValidation | null | undefined): Certificate
     approvedHours: v.approvedHours == null ? null : Number(v.approvedHours),
     reviewNotes: v.reviewNotes ?? null,
     categoryName: v.activityCategory?.name ?? '',
+    categoryId: v.activityCategory?.id ?? '',
     groupCode: v.activityGroup?.code ?? '',
+    groupId: v.activityGroup?.id ?? '',
   };
 }
 
@@ -530,6 +533,37 @@ export const api = {
       );
     }
     return body as AcademicReviewResult;
+  },
+
+  reassignCertificateClassification: async (
+    certificateId: string,
+    payload: {
+      activityGroupId: string;
+      activityCategoryId: string;
+      changeReason?: string | null;
+    }
+  ): Promise<AcademicReassignResult> => {
+    const res = await apiFetch(
+      `/api/certificates/${encodeURIComponent(certificateId)}/academic-classification`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
+    const text = await res.text();
+    let body: AcademicReassignResult | { error?: string };
+    try {
+      body = text ? (JSON.parse(text) as AcademicReassignResult | { error?: string }) : ({} as { error?: string });
+    } catch {
+      throw new Error(`Erro ao remanejar certificado: ${res.status}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        'error' in body && typeof body.error === 'string' ? body.error : `Erro ao remanejar certificado: ${res.status}`
+      );
+    }
+    return body as AcademicReassignResult;
   },
 
   getCertificateAcademicReviewHistory: async (
