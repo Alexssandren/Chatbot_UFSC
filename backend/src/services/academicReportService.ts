@@ -42,8 +42,6 @@ export async function generateConsolidatedReportPdf(
     consolidation,
     validations,
     {
-      requerimentoTitle: env.reportRequerimentoTitle,
-      coordinatorName: env.reportCoordinatorName,
       coordinatorRole: env.reportCoordinatorRole,
     }
   )

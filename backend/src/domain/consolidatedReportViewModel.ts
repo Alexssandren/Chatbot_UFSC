@@ -3,8 +3,8 @@ import { isAcademicallyApproved } from './academicRules'
 import type { AcademicConsolidation } from '../services/academicValidationService'
 
 export const REPORT_INSTITUTION_NAME = 'Universidade Federal de Santa Catarina'
-export const REPORT_COURSE_NAME = 'Curso TIC'
-export const REPORT_TITLE = 'Relatorio consolidado de atividades complementares'
+export const REPORT_COURSE_NAME = 'Curso de Tecnologias da Informação e Comunicação'
+export const REPORT_TITLE = 'Relatório consolidado de atividades complementares'
 
 export type ConsolidatedReportStudent = {
   nome: string
@@ -13,21 +13,11 @@ export type ConsolidatedReportStudent = {
 
 export type ApprovedActivityRow = {
   categoryName: string
-  certificateName: string
   approvedHours: number
 }
 
-export type ReportRequerimentoHeader = {
-  title: string
-  studentName: string
-  matricula: string
-  issueDate: string
-}
-
 export type ReportSignatureBlock = {
-  coordinatorName: string
   coordinatorRole: string
-  signedAt: string
 }
 
 export type ConsolidatedReportViewModel = {
@@ -35,7 +25,6 @@ export type ConsolidatedReportViewModel = {
   issuedAt: Date
   consolidation: AcademicConsolidation
   approvedActivities: ApprovedActivityRow[]
-  requerimentoHeader: ReportRequerimentoHeader
   signature: ReportSignatureBlock
 }
 
@@ -49,17 +38,40 @@ export type ValidationForReportRow = {
   certificate: { originalFilename: string }
 }
 
-function formatDateBr(d: Date): string {
-  const day = String(d.getDate()).padStart(2, '0')
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const year = d.getFullYear()
-  return `${day}/${month}/${year}`
+export type ReportMetaInput = {
+  coordinatorRole: string
 }
 
-export type ReportMetaInput = {
-  requerimentoTitle: string
-  coordinatorName: string
-  coordinatorRole: string
+function aggregateApprovedActivitiesByCategory(
+  validations: ValidationForReportRow[]
+): ApprovedActivityRow[] {
+  const byCategory = new Map<string, { hours: number; groupId: string }>()
+
+  for (let i = 0; i < validations.length; i++) {
+    const v = validations[i]
+    if (!isAcademicallyApproved(v)) {
+      continue
+    }
+    const existing = byCategory.get(v.activityCategory.name)
+    const hours = (existing?.hours ?? 0) + (v.approvedHours ?? 0)
+    byCategory.set(v.activityCategory.name, {
+      hours,
+      groupId: existing?.groupId ?? v.activityGroup.id,
+    })
+  }
+
+  return Array.from(byCategory.entries())
+    .sort((a, b) => {
+      const g = compareActivityGroupsByDisplayOrder({ id: a[1].groupId }, { id: b[1].groupId })
+      if (g !== 0) {
+        return g
+      }
+      return a[0].localeCompare(b[0], 'pt-BR')
+    })
+    .map(([categoryName, { hours }]) => ({
+      categoryName,
+      approvedHours: hours,
+    }))
 }
 
 export function buildConsolidatedReportViewModel(
@@ -69,63 +81,13 @@ export function buildConsolidatedReportViewModel(
   validations: ValidationForReportRow[],
   reportMeta: ReportMetaInput
 ): ConsolidatedReportViewModel {
-  const rows: {
-    groupId: string
-    groupCode: string
-    categoryName: string
-    certificateName: string
-    approvedHours: number
-  }[] = []
-
-  for (let i = 0; i < validations.length; i++) {
-    const v = validations[i]
-    if (!isAcademicallyApproved(v)) {
-      continue
-    }
-    rows.push({
-      groupId: v.activityGroup.id,
-      groupCode: v.activityGroup.code,
-      categoryName: v.activityCategory.name,
-      certificateName: v.certificate.originalFilename,
-      approvedHours: v.approvedHours ?? 0,
-    })
-  }
-
-  rows.sort((a, b) => {
-    const g = compareActivityGroupsByDisplayOrder({ id: a.groupId }, { id: b.groupId })
-    if (g !== 0) {
-      return g
-    }
-    const c = a.categoryName.localeCompare(b.categoryName, 'pt-BR')
-    if (c !== 0) {
-      return c
-    }
-    return a.certificateName.localeCompare(b.certificateName, 'pt-BR')
-  })
-
-  const approvedActivities: ApprovedActivityRow[] = rows.map((r) => ({
-    categoryName: r.categoryName,
-    certificateName: r.certificateName,
-    approvedHours: r.approvedHours,
-  }))
-
-  const issueDate = formatDateBr(issuedAt)
-
   return {
     student,
     issuedAt,
     consolidation,
-    approvedActivities,
-    requerimentoHeader: {
-      title: reportMeta.requerimentoTitle,
-      studentName: student.nome,
-      matricula: student.matricula,
-      issueDate,
-    },
+    approvedActivities: aggregateApprovedActivitiesByCategory(validations),
     signature: {
-      coordinatorName: reportMeta.coordinatorName,
       coordinatorRole: reportMeta.coordinatorRole,
-      signedAt: issueDate,
     },
   }
 }

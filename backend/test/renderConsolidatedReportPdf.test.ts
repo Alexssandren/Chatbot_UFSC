@@ -29,23 +29,23 @@ const consolidation: AcademicConsolidation = {
 }
 
 describe('renderConsolidatedReportPdf', () => {
-  it('gera PDF com cabecalho do requerimento e assinatura', async () => {
+  it('gera PDF com cabecalho institucional e assinatura do coordenador', async () => {
     const vm = buildConsolidatedReportViewModel(
       { nome: 'Ana Silva', matricula: '2025123456' },
       new Date('2026-06-04'),
       consolidation,
       [],
       {
-        requerimentoTitle: 'Requerimento de validacao',
-        coordinatorName: 'Vilson Gruber',
-        coordinatorRole: 'Coordenador do curso',
+        coordinatorRole: 'Coordenador do curso de Tecnologias da Informação e Comunicação',
       }
     )
 
     const buffer = await renderConsolidatedReportPdf(vm)
     assert.ok(buffer.length > 400)
     assert.equal(buffer.subarray(0, 4).toString('utf8'), '%PDF')
-    assert.equal(vm.signature.coordinatorName, 'Vilson Gruber')
-    assert.equal(vm.requerimentoHeader.title, 'Requerimento de validacao')
+    assert.equal(
+      vm.signature.coordinatorRole,
+      'Coordenador do curso de Tecnologias da Informação e Comunicação'
+    )
   })
 })

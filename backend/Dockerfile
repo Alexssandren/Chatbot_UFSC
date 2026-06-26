@@ -26,6 +26,7 @@ RUN npm ci --include=dev
 
 COPY src ./src
 COPY --from=build /app/dist ./dist
+COPY src/assets ./dist/assets
 
 RUN mkdir -p /app/data /app/uploads
 

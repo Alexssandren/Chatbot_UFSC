@@ -64,14 +64,46 @@ describe('buildConsolidatedReportViewModel', () => {
         },
       ],
       {
-        requerimentoTitle: 'Requerimento teste',
-        coordinatorName: 'Coordenador Teste',
-        coordinatorRole: 'Coordenador(a)',
+        coordinatorRole: 'Coordenador do curso de Tecnologias da Informação e Comunicação',
       }
     )
 
     assert.equal(vm.approvedActivities.length, 1)
-    assert.equal(vm.approvedActivities[0].certificateName, 'cert-a.pdf')
+    assert.equal(vm.approvedActivities[0].categoryName, 'Pesquisa')
+    assert.equal(vm.approvedActivities[0].approvedHours, 10)
+  })
+
+  it('agrega horas homologadas por categoria', () => {
+    const vm = buildConsolidatedReportViewModel(
+      { nome: 'Teste', matricula: '123' },
+      new Date('2026-05-27'),
+      emptyConsolidation(),
+      [
+        {
+          status: ValidationStatus.approved,
+          approvedHours: 4,
+          requestedHours: 4,
+          activityGroupId: 'g5',
+          activityGroup: { id: 'g5', code: 'GV' },
+          activityCategory: { groupId: 'g5', name: 'Cursos de formacao' },
+          certificate: { originalFilename: 'cert-a.pdf' },
+        },
+        {
+          status: ValidationStatus.approved,
+          approvedHours: 6,
+          requestedHours: 6,
+          activityGroupId: 'g5',
+          activityGroup: { id: 'g5', code: 'GV' },
+          activityCategory: { groupId: 'g5', name: 'Cursos de formacao' },
+          certificate: { originalFilename: 'cert-b.pdf' },
+        },
+      ],
+      {
+        coordinatorRole: 'Coordenador do curso de Tecnologias da Informação e Comunicação',
+      }
+    )
+
+    assert.equal(vm.approvedActivities.length, 1)
     assert.equal(vm.approvedActivities[0].approvedHours, 10)
   })
 })

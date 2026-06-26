@@ -88,7 +88,8 @@ export function loadEnv(): AppEnv {
   const reportCoordinatorName =
     process.env.REPORT_COORDINATOR_NAME?.trim() || 'Coordenacao do curso TIC'
   const reportCoordinatorRole =
-    process.env.REPORT_COORDINATOR_ROLE?.trim() || 'Coordenador(a) do curso'
+    process.env.REPORT_COORDINATOR_ROLE?.trim() ||
+    'Coordenador do curso de Tecnologias da Informação e Comunicação'
   const reportRequerimentoTitle =
     process.env.REPORT_REQUERIMENTO_TITLE?.trim() ||
     'Requerimento de validacao de atividades complementares'
