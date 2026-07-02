@@ -75,6 +75,26 @@ function drawCenteredText(
   return doc.y
 }
 
+function drawTableRow(
+  doc: InstanceType<typeof PDFDocument>,
+  rowStartY: number,
+  cells: Array<{ text: string; x: number; width?: number }>
+): number {
+  let rowBottom = rowStartY
+
+  for (let i = 0; i < cells.length; i++) {
+    const cell = cells[i]
+    if (cell.width != null) {
+      doc.text(cell.text, cell.x, rowStartY, { width: cell.width })
+    } else {
+      doc.text(cell.text, cell.x, rowStartY)
+    }
+    rowBottom = Math.max(rowBottom, doc.y)
+  }
+
+  return rowBottom + 4
+}
+
 export function renderConsolidatedReportPdf(vm: ConsolidatedReportViewModel): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: PAGE_MARGIN, size: 'A4' })
@@ -137,17 +157,18 @@ export function renderConsolidatedReportPdf(vm: ConsolidatedReportViewModel): Pr
     for (let i = 0; i < consolidation.groups.length; i++) {
       const g = consolidation.groups[i]
       const label = `${g.code} — ${g.name}`
-      doc.text(label, colGroup, y, { width: 250 })
-      doc.text(String(g.eligibleHours), colHours, y)
-      doc.text(g.meetsMinimumHours ? 'Sim' : 'Nao', colMeets, y)
-      y = doc.y + 4
+      y = drawTableRow(doc, y, [
+        { text: label, x: colGroup, width: 250 },
+        { text: String(g.eligibleHours), x: colHours },
+        { text: g.meetsMinimumHours ? 'Sim' : 'Nao', x: colMeets },
+      ])
       if (y > 700) {
         doc.addPage()
         y = PAGE_MARGIN
       }
     }
 
-    y = doc.y + 14
+    y += 10
     doc.font('Helvetica-Bold').fontSize(11).text('Atividades homologadas', left, y)
     y = doc.y + 10
     doc.fontSize(10)
@@ -166,9 +187,10 @@ export function renderConsolidatedReportPdf(vm: ConsolidatedReportViewModel): Pr
     } else {
       for (let i = 0; i < vm.approvedActivities.length; i++) {
         const row = vm.approvedActivities[i]
-        doc.text(row.categoryName, colCat, y, { width: 380 })
-        doc.text(String(row.approvedHours), colH, y)
-        y = Math.max(doc.y, y + 14)
+        y = drawTableRow(doc, y, [
+          { text: row.categoryName, x: colCat, width: 380 },
+          { text: String(row.approvedHours), x: colH },
+        ])
         if (y > 700) {
           doc.addPage()
           y = PAGE_MARGIN

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
+import { COURSE_NAME } from '../components/StudentGroupSections';
 import { api, type PublicUser } from '../services/api';
 
 export function Profile() {
@@ -46,7 +47,7 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Perfil do orientador</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Perfil do Coordenador</h2>
         <p className="text-sm text-gray-500">Dados da sessao autenticada (somente leitura).</p>
       </div>
 
@@ -73,6 +74,10 @@ export function Profile() {
           <div>
             <dt className="text-sm text-gray-500">Papel no sistema</dt>
             <dd className="font-medium text-gray-900">{user.role}</dd>
+          </div>
+          <div>
+            <dt className="text-sm text-gray-500">Curso</dt>
+            <dd className="font-medium text-gray-900">{COURSE_NAME}</dd>
           </div>
         </dl>
 

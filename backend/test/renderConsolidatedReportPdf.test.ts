@@ -48,4 +48,56 @@ describe('renderConsolidatedReportPdf', () => {
       'Coordenador do curso de Tecnologias da Informação e Comunicação'
     )
   })
+
+  it('espaca linhas longas no resumo por grupo', async () => {
+    const longNameConsolidation: AcademicConsolidation = {
+      ...consolidation,
+      groups: [
+        {
+          groupId: '1',
+          code: 'GI',
+          name: 'Grupo I — Atividades de iniciação à docência e pesquisa',
+          approvedHours: 0,
+          eligibleHours: 0,
+          meetsMinimumHours: false,
+        },
+        {
+          groupId: '2',
+          code: 'GII',
+          name: 'Grupo II — Congressos, seminários, conferências e outras atividades assistidas',
+          approvedHours: 0,
+          eligibleHours: 0,
+          meetsMinimumHours: false,
+        },
+        {
+          groupId: '5',
+          code: 'GV',
+          name: 'Grupo V — Cursos de formação complementar',
+          approvedHours: 8.8,
+          eligibleHours: 8.8,
+          meetsMinimumHours: false,
+        },
+      ],
+    }
+
+    const compactVm = buildConsolidatedReportViewModel(
+      { nome: 'Felipe Matar', matricula: '23201012' },
+      new Date('2026-07-02'),
+      { ...consolidation, groups: [] },
+      [],
+      { coordinatorRole: 'Coordenador do curso de Tecnologias da Informação e Comunicação' }
+    )
+    const longVm = buildConsolidatedReportViewModel(
+      { nome: 'Felipe Matar', matricula: '23201012' },
+      new Date('2026-07-02'),
+      longNameConsolidation,
+      [],
+      { coordinatorRole: 'Coordenador do curso de Tecnologias da Informação e Comunicação' }
+    )
+
+    const compactBuffer = await renderConsolidatedReportPdf(compactVm)
+    const longBuffer = await renderConsolidatedReportPdf(longVm)
+
+    assert.ok(longBuffer.length > compactBuffer.length + 200)
+  })
 })

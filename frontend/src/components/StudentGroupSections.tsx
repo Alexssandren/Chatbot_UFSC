@@ -2,7 +2,7 @@ import type { AcademicCatalogGroup, AcademicSummary, Certificate } from '../type
 import { groupCertificatesForDisplay } from '../utils/groupCertificates';
 import { FileText } from 'lucide-react';
 
-const COURSE_NAME = 'Tecnologias da Informacao e Comunicacao';
+const COURSE_NAME = 'Tecnologias da Informação e Comunicação';
 
 export { COURSE_NAME };
 
